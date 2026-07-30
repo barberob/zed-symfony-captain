@@ -1,0 +1,10 @@
+{
+  "lsp": {
+    "symfony-captain": {
+      "binary": {
+        "path": "php",
+        "arguments": ["/home/benoit/aih/docker/labo/zed-symfony-captain/lsp/symfony-captain-lsp.php"]
+      }
+    }
+  }
+}
