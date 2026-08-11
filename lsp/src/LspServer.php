@@ -82,6 +82,14 @@ final class LspServer
                 ]));
 
                 return true;
+            case 'textDocument/definition':
+                $this->ensureIndex();
+                $stream->write($this->encode([
+                    'id' => $id,
+                    'result' => $this->definition($message['params'] ?? []),
+                ]));
+
+                return true;
         }
 
         return true;
@@ -139,6 +147,69 @@ final class LspServer
         }
 
         return (new WorkspaceSymbols($this->routeProvider->projectRoot()))->build($this->routeIndex);
+    }
+
+    /**
+     * Resolves a `textDocument/definition` request to the controller location
+     * of the route name the cursor is on. Returns an empty list when the
+     * cursor is not on a recognized route name string, when the route is
+     * unknown, or when the controller cannot be resolved.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function definition(array $params): array
+    {
+        if (null === $this->routeIndex) {
+            return [];
+        }
+
+        $uri = $params['textDocument']['uri'] ?? null;
+        $position = $params['position'] ?? null;
+
+        if (!is_string($uri) || !is_array($position)) {
+            return [];
+        }
+
+        $file = Uri::toPath($uri);
+
+        if (null === $file || !is_file($file) || !str_ends_with($file, '.php')) {
+            return [];
+        }
+
+        $source = file_get_contents($file);
+
+        if (false === $source) {
+            return [];
+        }
+
+        $line = $position['line'] ?? null;
+        $character = $position['character'] ?? null;
+
+        if (!is_int($line) || !is_int($character)) {
+            return [];
+        }
+
+        $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
+
+        if (null === $occurrence) {
+            return [];
+        }
+
+        $entry = $this->routeIndex->findByName($occurrence->name);
+
+        if (null === $entry || null === $entry->location) {
+            return [];
+        }
+
+        return [[
+            'uri' => Uri::fromPath($entry->location->file),
+            'range' => [
+                'start' => ['line' => $entry->location->line - 1, 'character' => 0],
+                'end' => ['line' => $entry->location->line - 1, 'character' => 0],
+            ],
+        ]];
     }
 
     /**

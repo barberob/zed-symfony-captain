@@ -121,6 +121,90 @@ final class LspServerTest extends TestCase
         self::assertSame([], $messages[1]['result']);
     }
 
+    public function testTextDocumentDefinitionReturnsControllerLocation(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        $lines = explode("\n", $source);
+        $line = 0;
+        $character = 0;
+
+        foreach ($lines as $index => $text) {
+            $offset = strpos($text, 'app_post_show');
+
+            if (false !== $offset) {
+                $line = $index;
+                $character = $offset + 5;
+
+                break;
+            }
+        }
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $locations = $response['result'];
+        self::assertCount(1, $locations);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/PostController.php'), $locations[0]['uri']);
+        self::assertSame(16, $locations[0]['range']['start']['line']);
+    }
+
+    public function testTextDocumentDefinitionOnUnknownRouteReturnsEmpty(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        $lines = explode("\n", $source);
+        $line = 0;
+        $character = 0;
+
+        foreach ($lines as $index => $text) {
+            $offset = strpos($text, 'app_not_defined');
+
+            if (false !== $offset) {
+                $line = $index;
+                $character = $offset + 2;
+
+                break;
+            }
+        }
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertSame([], $messages[1]['result']);
+    }
+
     /**
      * @param list<array<string, mixed>> $symbols
      *
