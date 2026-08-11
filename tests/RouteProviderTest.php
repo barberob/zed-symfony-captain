@@ -9,6 +9,7 @@ use SymfonyCaptain\Lsp\ControllerResolver;
 use SymfonyCaptain\Lsp\DebugRouterParser;
 use SymfonyCaptain\Lsp\RouteEntry;
 use SymfonyCaptain\Lsp\RouteProvider;
+use SymfonyCaptain\Lsp\RouteProviderException;
 
 final class RouteProviderTest extends TestCase
 {
@@ -47,11 +48,33 @@ final class RouteProviderTest extends TestCase
         self::assertSame('', $byName['app_callback']->route->controller);
     }
 
-    public function testMissingConsoleReturnsEmptyIndex(): void
+    public function testBuildThrowsWhenConsoleIsMissing(): void
     {
-        $entries = $this->buildIndex(__DIR__ . '/Fixture/Empty');
+        $this->expectException(RouteProviderException::class);
 
-        self::assertSame([], $entries);
+        $this->buildIndex(__DIR__ . '/Fixture/Empty');
+    }
+
+    public function testBuildThrowsWhenDebugRouterFails(): void
+    {
+        $this->expectException(RouteProviderException::class);
+
+        $this->buildIndex(__DIR__ . '/Fixture/Broken');
+    }
+
+    public function testIsSymfonyProjectReturnsTrueForProjectFixture(): void
+    {
+        self::assertTrue($this->provider(__DIR__ . '/Fixture/Project')->isSymfonyProject());
+    }
+
+    public function testIsSymfonyProjectReturnsFalseWithoutConsole(): void
+    {
+        self::assertFalse($this->provider(__DIR__ . '/Fixture/Empty')->isSymfonyProject());
+    }
+
+    public function testIsSymfonyProjectReturnsFalseWithoutBootableKernel(): void
+    {
+        self::assertFalse($this->provider(__DIR__ . '/Fixture/ConsoleOnly')->isSymfonyProject());
     }
 
     /**
@@ -59,13 +82,16 @@ final class RouteProviderTest extends TestCase
      */
     private function buildIndex(string $projectRoot): array
     {
-        $provider = new RouteProvider(
+        return $this->provider($projectRoot)->build();
+    }
+
+    private function provider(string $projectRoot): RouteProvider
+    {
+        return new RouteProvider(
             projectRoot: $projectRoot,
             parser: new DebugRouterParser(),
             controllerResolver: new ControllerResolver($projectRoot),
         );
-
-        return $provider->build();
     }
 
     /**

@@ -51,7 +51,7 @@ final class LspServer
 
         switch ($method) {
             case 'initialize':
-                $this->initialize($message['params'] ?? []);
+                $this->initialize($message['params'] ?? [], $stream);
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => [
@@ -74,8 +74,12 @@ final class LspServer
                 return true;
             case 'exit':
                 return false;
+            case 'textDocument/didSave':
+                $this->didSave($message['params'] ?? [], $stream);
+
+                return true;
             case 'workspace/symbol':
-                $this->ensureIndex();
+                $this->ensureIndex($stream);
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => $this->symbols(),
@@ -83,7 +87,7 @@ final class LspServer
 
                 return true;
             case 'textDocument/definition':
-                $this->ensureIndex();
+                $this->ensureIndex($stream);
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => $this->definition($message['params'] ?? []),
@@ -98,7 +102,7 @@ final class LspServer
     /**
      * @param array<string, mixed> $params
      */
-    private function initialize(array $params): void
+    private function initialize(array $params, MessageStream $stream): void
     {
         $root = $this->projectRoot($params);
 
@@ -110,19 +114,19 @@ final class LspServer
             );
         }
 
-        $this->rebuildIndex();
+        $this->rebuildIndex($stream);
     }
 
-    private function ensureIndex(): void
+    private function ensureIndex(MessageStream $stream): void
     {
         if (null === $this->routeProvider || null !== $this->routeIndex) {
             return;
         }
 
-        $this->rebuildIndex();
+        $this->rebuildIndex($stream);
     }
 
-    private function rebuildIndex(): void
+    private function rebuildIndex(MessageStream $stream): void
     {
         if (null === $this->routeProvider) {
             return;
@@ -134,7 +138,47 @@ final class LspServer
             return;
         }
 
-        $this->routeIndex = new RouteIndex($this->routeProvider->build());
+        try {
+            $this->routeIndex = new RouteIndex($this->routeProvider->build());
+        } catch (RouteProviderException $exception) {
+            $this->logError($stream, $exception->getMessage());
+            $this->routeIndex = new RouteIndex([]);
+        }
+    }
+
+    /**
+     * Rebuilds the route index when a file under `src/Controller/` or
+     * `config/routes/` is saved, so symbol and definition results stay in sync
+     * with the workspace without a language server restart.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function didSave(array $params, MessageStream $stream): void
+    {
+        $uri = $params['textDocument']['uri'] ?? null;
+
+        if (!is_string($uri) || null === $this->routeProvider) {
+            return;
+        }
+
+        $file = Uri::toPath($uri);
+
+        if (null === $file || !$this->routeProvider->isRouteDefinitionFile($file)) {
+            return;
+        }
+
+        $this->rebuildIndex($stream);
+    }
+
+    private function logError(MessageStream $stream, string $message): void
+    {
+        $stream->write($this->encode([
+            'method' => 'window/logMessage',
+            'params' => [
+                'type' => 1,
+                'message' => $message,
+            ],
+        ]));
     }
 
     /**

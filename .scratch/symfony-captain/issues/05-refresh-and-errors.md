@@ -1,4 +1,15 @@
-Status: ready-for-agent
+Status: ready-for-human
+
+## Completed
+
+- `textDocument/didSave` rebuilds the route index for files under `src/Controller/` and `config/routes/`; other saves are ignored.
+- `isSymfonyProject()` now checks for `bin/console` plus a bootable kernel marker (`src/Kernel.php` or `config/bundles.php`).
+- `debug:router` failure throws `RouteProviderException`; the LSP catches it, emits `window/logMessage` (type Error) and returns empty results.
+- Reflection-failed routes remain listed without a location (existing behavior, still covered).
+- New fixtures: `Refresh` (dynamic routes.json), `Broken` (failing console), `ConsoleOnly` (console without kernel); `Project` gained a `src/Kernel.php`.
+- Tests: didSave rebuild on config/routes + controller, no rebuild on unrelated save, didSave failure path, debug:router failure log, Symfony detection cases.
+
+Manual test in Zed still pending (route changes reflected after saving a controller).
 
 # 05 — Refresh the index on save and handle errors gracefully
 

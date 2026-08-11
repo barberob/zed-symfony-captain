@@ -18,25 +18,44 @@ final class RouteProvider
         return $this->projectRoot;
     }
 
+    /**
+     * Detects a Symfony project from its skeleton: a `bin/console` entry point
+     * plus a bootable kernel marker (`src/Kernel.php` or `config/bundles.php`).
+     * Actual bootability is verified by `debug:router` succeeding during
+     * `build()`; a project with the skeleton but an unbootable kernel surfaces
+     * as a `RouteProviderException` there instead of being treated as
+     * non-Symfony.
+     */
     public function isSymfonyProject(): bool
     {
-        return is_file($this->projectRoot . '/bin/console');
+        return is_file($this->projectRoot . '/bin/console')
+            && (is_file($this->projectRoot . '/src/Kernel.php') || is_file($this->projectRoot . '/config/bundles.php'));
+    }
+
+    /**
+     * Returns whether the given file can change the route index when saved:
+     * controllers under `src/Controller/` or route configuration under
+     * `config/routes/`.
+     */
+    public function isRouteDefinitionFile(string $file): bool
+    {
+        $root = rtrim($this->projectRoot, '/') . '/';
+
+        return str_starts_with($file, $root . 'src/Controller/')
+            || str_starts_with($file, $root . 'config/routes/');
     }
 
     /**
      * Runs `bin/console debug:router --format=json` in the project root and
      * builds the route index, resolving each controller to its file location.
-     * Returns an empty index when the command fails.
      *
      * @return list<RouteEntry>
+     *
+     * @throws RouteProviderException when the command fails or the project is not bootable
      */
     public function build(): array
     {
         $output = $this->runDebugRouter();
-
-        if (null === $output) {
-            return [];
-        }
 
         $entries = [];
 
@@ -50,7 +69,7 @@ final class RouteProvider
         return $entries;
     }
 
-    private function runDebugRouter(): ?string
+    private function runDebugRouter(): string
     {
         $command = sprintf(
             'cd %s && %s debug:router --format=json',
@@ -63,7 +82,11 @@ final class RouteProvider
         exec($command . ' 2>/dev/null', $output, $exitCode);
 
         if (0 !== $exitCode) {
-            return null;
+            throw new RouteProviderException(sprintf(
+                'Command "bin/console debug:router" failed with exit code %d in project "%s".',
+                $exitCode,
+                $this->projectRoot,
+            ));
         }
 
         return implode(PHP_EOL, $output);

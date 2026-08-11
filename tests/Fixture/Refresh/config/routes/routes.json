@@ -1,0 +1,14 @@
+{
+    "app_dashboard": {
+        "path": "/dashboard",
+        "host": "ANY",
+        "scheme": "ANY",
+        "method": "GET|HEAD",
+        "class": "Symfony\\Component\\Routing\\Route",
+        "defaults": {
+            "_controller": "App\\Controller\\DashboardController::index"
+        },
+        "requirements": "NO CUSTOM",
+        "options": []
+    }
+}

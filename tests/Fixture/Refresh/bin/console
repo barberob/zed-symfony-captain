@@ -1,0 +1,19 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+$command = $argv[1] ?? null;
+
+if ('debug:router' !== $command || !in_array('--format=json', $argv, true)) {
+    fwrite(STDERR, sprintf('Command "%s" is not available in the fixture project.' . PHP_EOL, $command ?? ''));
+    exit(1);
+}
+
+$routesFile = __DIR__ . '/../config/routes/routes.json';
+
+if (is_file($routesFile)) {
+    echo (string) file_get_contents($routesFile) . PHP_EOL;
+} else {
+    echo '{}' . PHP_EOL;
+}
