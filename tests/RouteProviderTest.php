@@ -1,0 +1,86 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SymfonyCaptain\Tests;
+
+use PHPUnit\Framework\TestCase;
+use SymfonyCaptain\Lsp\ControllerResolver;
+use SymfonyCaptain\Lsp\DebugRouterParser;
+use SymfonyCaptain\Lsp\RouteEntry;
+use SymfonyCaptain\Lsp\RouteProvider;
+
+final class RouteProviderTest extends TestCase
+{
+    public function testBuildReturnsRoutesWithLocationsFromFixture(): void
+    {
+        $entries = $this->buildIndex(__DIR__ . '/Fixture/Project');
+        $byName = $this->indexByName($entries);
+
+        self::assertCount(6, $entries);
+
+        $home = $byName['app_home'];
+        self::assertSame('/', $home->route->path);
+        self::assertSame(['GET', 'HEAD'], $home->route->methods);
+        self::assertSame('App\\Controller\\HomeController::index', $home->route->controller);
+        self::assertNotNull($home->location);
+        self::assertSame(__DIR__ . '/Fixture/Project/src/Controller/HomeController.php', $home->location->file);
+        self::assertSame(12, $home->location->line);
+
+        $show = $byName['app_post_show'];
+        self::assertSame('/posts/{id}', $show->route->path);
+        self::assertSame(['GET', 'HEAD'], $show->route->methods);
+        self::assertNotNull($show->location);
+        self::assertSame(__DIR__ . '/Fixture/Project/src/Controller/PostController.php', $show->location->file);
+        self::assertSame(17, $show->location->line);
+    }
+
+    public function testUnresolvableControllersAreKeptWithoutLocation(): void
+    {
+        $entries = $this->buildIndex(__DIR__ . '/Fixture/Project');
+        $byName = $this->indexByName($entries);
+
+        self::assertNull($byName['app_legacy_home']->location);
+        self::assertSame('App\\Controller\\LegacyController::home', $byName['app_legacy_home']->route->controller);
+
+        self::assertNull($byName['app_callback']->location);
+        self::assertSame('', $byName['app_callback']->route->controller);
+    }
+
+    public function testMissingConsoleReturnsEmptyIndex(): void
+    {
+        $entries = $this->buildIndex(__DIR__ . '/Fixture/Empty');
+
+        self::assertSame([], $entries);
+    }
+
+    /**
+     * @return list<RouteEntry>
+     */
+    private function buildIndex(string $projectRoot): array
+    {
+        $provider = new RouteProvider(
+            projectRoot: $projectRoot,
+            parser: new DebugRouterParser(),
+            controllerResolver: new ControllerResolver($projectRoot),
+        );
+
+        return $provider->build();
+    }
+
+    /**
+     * @param list<RouteEntry> $entries
+     *
+     * @return array<string, RouteEntry>
+     */
+    private function indexByName(array $entries): array
+    {
+        $byName = [];
+
+        foreach ($entries as $entry) {
+            $byName[$entry->route->name] = $entry;
+        }
+
+        return $byName;
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "name": "symfony-captain/fixture",
+    "description": "Minimal Symfony project fixture used by Symfony Captain integration tests",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    }
+}
