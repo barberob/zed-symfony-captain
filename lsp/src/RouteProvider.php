@@ -13,6 +13,16 @@ final class RouteProvider
     ) {
     }
 
+    public function projectRoot(): string
+    {
+        return $this->projectRoot;
+    }
+
+    public function isSymfonyProject(): bool
+    {
+        return is_file($this->projectRoot . '/bin/console');
+    }
+
     /**
      * Runs `bin/console debug:router --format=json` in the project root and
      * builds the route index, resolving each controller to its file location.

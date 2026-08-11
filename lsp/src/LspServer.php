@@ -6,6 +6,15 @@ namespace SymfonyCaptain\Lsp;
 
 final class LspServer
 {
+    private ?RouteProvider $routeProvider;
+    private ?RouteIndex $routeIndex = null;
+
+    public function __construct(
+        ?RouteProvider $routeProvider = null,
+    ) {
+        $this->routeProvider = $routeProvider;
+    }
+
     public function run(MessageStream $stream): void
     {
         while (true) {
@@ -42,6 +51,7 @@ final class LspServer
 
         switch ($method) {
             case 'initialize':
+                $this->initialize($message['params'] ?? []);
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => [
@@ -64,9 +74,89 @@ final class LspServer
                 return true;
             case 'exit':
                 return false;
+            case 'workspace/symbol':
+                $this->ensureIndex();
+                $stream->write($this->encode([
+                    'id' => $id,
+                    'result' => $this->symbols(),
+                ]));
+
+                return true;
         }
 
         return true;
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function initialize(array $params): void
+    {
+        $root = $this->projectRoot($params);
+
+        if (null === $this->routeProvider && null !== $root) {
+            $this->routeProvider = new RouteProvider(
+                $root,
+                new DebugRouterParser(),
+                new ControllerResolver($root),
+            );
+        }
+
+        $this->rebuildIndex();
+    }
+
+    private function ensureIndex(): void
+    {
+        if (null === $this->routeProvider || null !== $this->routeIndex) {
+            return;
+        }
+
+        $this->rebuildIndex();
+    }
+
+    private function rebuildIndex(): void
+    {
+        if (null === $this->routeProvider) {
+            return;
+        }
+
+        if (!$this->routeProvider->isSymfonyProject()) {
+            $this->routeIndex = null;
+
+            return;
+        }
+
+        $this->routeIndex = new RouteIndex($this->routeProvider->build());
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function symbols(): array
+    {
+        if (null === $this->routeIndex) {
+            return [];
+        }
+
+        return (new WorkspaceSymbols($this->routeProvider->projectRoot()))->build($this->routeIndex);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function projectRoot(array $params): ?string
+    {
+        foreach (['rootUri', 'rootPath'] as $key) {
+            $value = $params[$key] ?? null;
+
+            if (!is_string($value) || '' === $value) {
+                continue;
+            }
+
+            return 'rootUri' === $key ? Uri::toPath($value) : $value;
+        }
+
+        return null;
     }
 
     /**

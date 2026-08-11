@@ -1,0 +1,62 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SymfonyCaptain\Lsp;
+
+final class WorkspaceSymbols
+{
+    private const SYMBOL_KIND_FUNCTION = 12;
+
+    public function __construct(
+        private readonly string $projectRoot,
+    ) {
+    }
+
+    /**
+     * Builds the LSP workspace symbols for the given route index: one symbol
+     * per route, named `Route: <name>` with detail `<METHOD> <path>`. Routes
+     * with a resolvable controller point to the controller file and method
+     * line. The other routes are still returned, with a fallback location so
+     * the response stays parseable by strict LSP clients.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function build(RouteIndex $index): array
+    {
+        $symbols = [];
+
+        foreach ($index->all() as $entry) {
+            $symbols[] = [
+                'name' => sprintf('Route: %s', $entry->route->name),
+                'kind' => self::SYMBOL_KIND_FUNCTION,
+                'detail' => sprintf('%s %s', $this->methods($entry->route), $entry->route->path),
+                'location' => $this->location($entry),
+            ];
+        }
+
+        return $symbols;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function location(RouteEntry $entry): array
+    {
+        $path = $entry->location?->file ?? $this->projectRoot . '/bin/console';
+        $line = $entry->location?->line ?? 1;
+
+        return [
+            'uri' => Uri::fromPath($path),
+            'range' => [
+                'start' => ['line' => $line - 1, 'character' => 0],
+                'end' => ['line' => $line - 1, 'character' => 0],
+            ],
+        ];
+    }
+
+    private function methods(Route $route): string
+    {
+        return [] === $route->methods ? 'ANY' : implode('|', $route->methods);
+    }
+}

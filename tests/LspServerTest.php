@@ -7,6 +7,7 @@ namespace SymfonyCaptain\Tests;
 use PHPUnit\Framework\TestCase;
 use SymfonyCaptain\Lsp\LspServer;
 use SymfonyCaptain\Lsp\MessageStream;
+use SymfonyCaptain\Lsp\Uri;
 
 final class LspServerTest extends TestCase
 {
@@ -66,6 +67,74 @@ final class LspServerTest extends TestCase
         $raw = stream_get_contents($output);
 
         self::assertSame('', $raw);
+    }
+
+    public function testWorkspaceSymbolsRequestReturnsOneSymbolPerRoute(): void
+    {
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'workspace/symbol'),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $symbols = $response['result'];
+        self::assertCount(6, $symbols);
+
+        $home = $this->symbolByName($symbols, 'Route: app_home');
+        self::assertNotNull($home);
+        self::assertSame('GET|HEAD /', $home['detail']);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/HomeController.php'), $home['location']['uri']);
+        self::assertSame(11, $home['location']['range']['start']['line']);
+
+        $legacy = $this->symbolByName($symbols, 'Route: app_legacy_home');
+        self::assertNotNull($legacy);
+        self::assertSame('ANY /legacy', $legacy['detail']);
+    }
+
+    public function testWorkspaceSymbolsRequestOnNonSymfonyProjectReturnsEmpty(): void
+    {
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildRequest(2, 'workspace/symbol'),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertSame([], $messages[1]['result']);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $symbols
+     *
+     * @return array<string, mixed>|null
+     */
+    private function symbolByName(array $symbols, string $name): ?array
+    {
+        foreach ($symbols as $symbol) {
+            if ($symbol['name'] === $name) {
+                return $symbol;
+            }
+        }
+
+        return null;
     }
 
     /**
