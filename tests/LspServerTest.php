@@ -33,6 +33,7 @@ final class LspServerTest extends TestCase
         self::assertArrayHasKey('capabilities', $response['result']);
         self::assertTrue($response['result']['capabilities']['workspaceSymbolProvider']);
         self::assertTrue($response['result']['capabilities']['definitionProvider']);
+        self::assertTrue($response['result']['capabilities']['textDocumentSync']['save']);
     }
 
     public function testShutdownThenExitStopsServer(): void

@@ -58,6 +58,11 @@ final class LspServer
                     'id' => $id,
                     'result' => [
                         'capabilities' => [
+                            'textDocumentSync' => [
+                                'openClose' => true,
+                                'change' => 0,
+                                'save' => true,
+                            ],
                             'workspaceSymbolProvider' => true,
                             'definitionProvider' => true,
                         ],
