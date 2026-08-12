@@ -77,6 +77,19 @@ final class RouteProviderTest extends TestCase
         self::assertFalse($this->provider(__DIR__ . '/Fixture/ConsoleOnly')->isSymfonyProject());
     }
 
+    public function testIsRouteDefinitionFileMatchesControllerAndRoutesConfig(): void
+    {
+        $provider = $this->provider(__DIR__ . '/Fixture/Project');
+        $root = __DIR__ . '/Fixture/Project';
+
+        self::assertTrue($provider->isRouteDefinitionFile($root . '/src/Controller/PostController.php'));
+        self::assertTrue($provider->isRouteDefinitionFile($root . '/src/Controller/Admin/UserController.php'));
+        self::assertTrue($provider->isRouteDefinitionFile($root . '/config/routes.yaml'));
+        self::assertTrue($provider->isRouteDefinitionFile($root . '/config/routes/annotations.yaml'));
+        self::assertFalse($provider->isRouteDefinitionFile($root . '/src/Entity/Post.php'));
+        self::assertFalse($provider->isRouteDefinitionFile($root . '/templates/index.html.twig'));
+    }
+
     /**
      * @return list<RouteEntry>
      */

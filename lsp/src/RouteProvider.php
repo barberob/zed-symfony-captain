@@ -34,14 +34,16 @@ final class RouteProvider
 
     /**
      * Returns whether the given file can change the route index when saved:
-     * controllers under `src/Controller/` or route configuration under
-     * `config/routes/`.
+     * controllers under `src/Controller/`, the `config/routes.yaml` file, or
+     * route configuration under the `config/routes/` directory.
      */
     public function isRouteDefinitionFile(string $file): bool
     {
         $root = rtrim($this->projectRoot, '/') . '/';
 
         return str_starts_with($file, $root . 'src/Controller/')
+            || $root . 'config/routes.yaml' === $file
+            || $root . 'config/routes.yml' === $file
             || str_starts_with($file, $root . 'config/routes/');
     }
 

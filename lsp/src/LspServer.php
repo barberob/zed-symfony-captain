@@ -11,6 +11,7 @@ final class LspServer
 
     public function __construct(
         ?RouteProvider $routeProvider = null,
+        private readonly Logger $logger = new Logger(),
     ) {
         $this->routeProvider = $routeProvider;
     }
@@ -48,6 +49,7 @@ final class LspServer
         }
 
         $id = $message['id'] ?? null;
+        $this->logger->debug(sprintf('dispatch %s id=%s', $method, is_int($id) ? (string) $id : 'null'));
 
         switch ($method) {
             case 'initialize':
@@ -106,6 +108,8 @@ final class LspServer
     {
         $root = $this->projectRoot($params);
 
+        $this->logger->debug(sprintf('initialize root=%s', $root ?? '<null>'));
+
         if (null === $this->routeProvider && null !== $root) {
             $this->routeProvider = new RouteProvider(
                 $root,
@@ -133,14 +137,18 @@ final class LspServer
         }
 
         if (!$this->routeProvider->isSymfonyProject()) {
+            $this->logger->debug(sprintf('rebuildIndex: %s is not a Symfony project', $this->routeProvider->projectRoot()));
             $this->routeIndex = null;
 
             return;
         }
 
         try {
-            $this->routeIndex = new RouteIndex($this->routeProvider->build());
+            $entries = $this->routeProvider->build();
+            $this->logger->debug(sprintf('rebuildIndex: built %d routes', count($entries)));
+            $this->routeIndex = new RouteIndex($entries);
         } catch (RouteProviderException $exception) {
+            $this->logger->error($exception->getMessage());
             $this->logError($stream, $exception->getMessage());
             $this->routeIndex = new RouteIndex([]);
         }
@@ -164,9 +172,12 @@ final class LspServer
         $file = Uri::toPath($uri);
 
         if (null === $file || !$this->routeProvider->isRouteDefinitionFile($file)) {
+            $this->logger->debug(sprintf('didSave ignored uri=%s file=%s', $uri ?? 'null', $file ?? 'null'));
+
             return;
         }
 
+        $this->logger->debug(sprintf('didSave triggers rebuild file=%s', $file));
         $this->rebuildIndex($stream);
     }
 
