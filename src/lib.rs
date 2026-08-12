@@ -1,9 +1,7 @@
 use std::fs;
 
 use zed_extension_api::{
-    self as zed,
-    settings::LspSettings,
-    DownloadedFileType, LanguageServerInstallationStatus,
+    self as zed, settings::LspSettings, DownloadedFileType, LanguageServerInstallationStatus,
 };
 
 /// The release tag whose `symfony-captain-lsp.php` asset is downloaded on first
@@ -54,17 +52,18 @@ impl SymfonyCaptainExtension {
                 &LanguageServerInstallationStatus::Downloading,
             );
 
-            zed::download_file(
+            let result = zed::download_file(
                 &lsp_download_url(),
                 &script_path,
                 DownloadedFileType::Uncompressed,
-            )
-            .map_err(|error| format!("failed to download {LSP_SCRIPT_NAME}: {error}"))?;
+            );
 
             zed::set_language_server_installation_status(
                 language_server_id,
                 &LanguageServerInstallationStatus::None,
             );
+
+            result.map_err(|error| format!("failed to download {LSP_SCRIPT_NAME}: {error}"))?;
         }
 
         self.cached_lsp_path = Some(script_path.clone());
@@ -98,8 +97,10 @@ impl zed::Extension for SymfonyCaptainExtension {
             .which("php")
             .ok_or_else(|| "php not found on PATH".to_string())?;
 
-        let lsp_path =
-            self.lsp_path(language_server_id, binary_settings.and_then(|binary| binary.path))?;
+        let lsp_path = self.lsp_path(
+            language_server_id,
+            binary_settings.and_then(|binary| binary.path),
+        )?;
 
         let mut arguments = vec![lsp_path];
         arguments.extend(extra_arguments);

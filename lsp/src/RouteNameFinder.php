@@ -129,22 +129,34 @@ final class RouteNameFinder
         $units = 0;
 
         while ($offset < $length && $units < $character) {
-            $byte = ord($source[$offset]);
-
-            if ($byte < 0x80) {
-                $offset += 1;
-            } elseif ($byte < 0xE0) {
-                $offset += 2;
-            } elseif ($byte < 0xF0) {
-                $offset += 3;
-            } else {
-                $offset += 4;
-                $units++;
-            }
-
-            $units++;
+            $units += $this->utf16Units($source[$offset]);
+            $offset += $this->utf8Bytes($source[$offset]);
         }
 
         return $offset;
+    }
+
+    private function utf8Bytes(string $firstByte): int
+    {
+        $byte = ord($firstByte);
+
+        if ($byte < 0x80) {
+            return 1;
+        }
+
+        if ($byte < 0xE0) {
+            return 2;
+        }
+
+        if ($byte < 0xF0) {
+            return 3;
+        }
+
+        return 4;
+    }
+
+    private function utf16Units(string $firstByte): int
+    {
+        return 0xF0 <= ord($firstByte) ? 2 : 1;
     }
 }

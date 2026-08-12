@@ -62,6 +62,17 @@ final class RouteProviderTest extends TestCase
         $this->buildIndex(__DIR__ . '/Fixture/Broken');
     }
 
+    public function testDebugRouterErrorCarriesConsoleStderr(): void
+    {
+        try {
+            $this->buildIndex(__DIR__ . '/Fixture/Broken');
+            self::fail('Expected a RouteProviderException to be thrown.');
+        } catch (RouteProviderException $exception) {
+            self::assertStringContainsString('exit code 1', $exception->getMessage());
+            self::assertStringContainsString('debug:router always fails', $exception->getMessage());
+        }
+    }
+
     public function testIsSymfonyProjectReturnsTrueForProjectFixture(): void
     {
         self::assertTrue($this->provider(__DIR__ . '/Fixture/Project')->isSymfonyProject());

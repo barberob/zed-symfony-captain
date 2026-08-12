@@ -78,19 +78,34 @@ final class RouteProvider
             escapeshellarg($this->projectRoot),
             escapeshellarg($this->projectRoot . '/bin/console'),
         );
-        $output = [];
-        $exitCode = 0;
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes,
+        );
 
-        exec($command . ' 2>/dev/null', $output, $exitCode);
-
-        if (0 !== $exitCode) {
+        if (!is_resource($process)) {
             throw new RouteProviderException(sprintf(
-                'Command "bin/console debug:router" failed with exit code %d in project "%s".',
-                $exitCode,
+                'Command "bin/console debug:router" failed to start in project "%s".',
                 $this->projectRoot,
             ));
         }
 
-        return implode(PHP_EOL, $output);
+        $output = stream_get_contents($pipes[1]);
+        $errorOutput = stream_get_contents($pipes[2]);
+        $exitCode = proc_close($process);
+
+        if (0 !== $exitCode) {
+            $detail = '' === (string) $errorOutput ? '' : sprintf(' (%s)', trim((string) $errorOutput));
+
+            throw new RouteProviderException(sprintf(
+                'Command "bin/console debug:router" failed with exit code %d in project "%s"%s.',
+                $exitCode,
+                $this->projectRoot,
+                $detail,
+            ));
+        }
+
+        return (string) $output;
     }
 }

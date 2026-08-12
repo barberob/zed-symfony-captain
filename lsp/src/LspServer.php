@@ -53,7 +53,7 @@ final class LspServer
 
         switch ($method) {
             case 'initialize':
-                $this->initialize($message['params'] ?? [], $stream);
+                $this->initialize($message['params'] ?? []);
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => [
@@ -109,7 +109,7 @@ final class LspServer
     /**
      * @param array<string, mixed> $params
      */
-    private function initialize(array $params, MessageStream $stream): void
+    private function initialize(array $params): void
     {
         $root = $this->projectRoot($params);
 
@@ -122,8 +122,6 @@ final class LspServer
                 new ControllerResolver($root),
             );
         }
-
-        $this->rebuildIndex($stream);
     }
 
     private function ensureIndex(MessageStream $stream): void
@@ -263,13 +261,7 @@ final class LspServer
             return [];
         }
 
-        return [[
-            'uri' => Uri::fromPath($entry->location->file),
-            'range' => [
-                'start' => ['line' => $entry->location->line - 1, 'character' => 0],
-                'end' => ['line' => $entry->location->line - 1, 'character' => 0],
-            ],
-        ]];
+        return [$entry->location->toLocation()];
     }
 
     /**

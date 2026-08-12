@@ -204,6 +204,41 @@ final class RouteNameFinderTest extends TestCase
         self::assertNull($occurrence);
     }
 
+    public function testFindAtMapsMultibyteCharactersToUtf16Units(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        $url = $this->generateUrl('héllo🎉app_home');
+        PHP;
+
+        $lines = explode("\n", $source);
+        $needleLine = null;
+        $needleByteOffset = null;
+
+        foreach ($lines as $line => $text) {
+            $offset = strpos($text, 'app_home');
+
+            if (false !== $offset) {
+                $needleLine = $line;
+                $needleByteOffset = $offset;
+
+                break;
+            }
+        }
+
+        self::assertNotNull($needleLine);
+        self::assertNotNull($needleByteOffset);
+
+        $prefix = substr($lines[$needleLine], 0, $needleByteOffset);
+        $character = (int) (strlen(mb_convert_encoding($prefix, 'UTF-16LE', 'UTF-8')) / 2);
+
+        $occurrence = (new RouteNameFinder())->findAt($source, $needleLine, $character);
+
+        self::assertNotNull($occurrence);
+        self::assertSame('héllo🎉app_home', $occurrence->name);
+    }
+
     /**
      * Returns the 0-based line and character of the first occurrence of the
      * given needle in the source, where character is expressed in UTF-16 code

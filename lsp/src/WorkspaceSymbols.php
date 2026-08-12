@@ -43,16 +43,11 @@ final class WorkspaceSymbols
      */
     private function location(RouteEntry $entry): array
     {
-        $path = $entry->location?->file ?? $this->projectRoot . '/bin/console';
-        $line = $entry->location?->line ?? 1;
+        if (null !== $entry->location) {
+            return $entry->location->toLocation();
+        }
 
-        return [
-            'uri' => Uri::fromPath($path),
-            'range' => [
-                'start' => ['line' => $line - 1, 'character' => 0],
-                'end' => ['line' => $line - 1, 'character' => 0],
-            ],
-        ];
+        return (new RouteLocation($this->projectRoot . '/bin/console', 1))->toLocation();
     }
 
     private function methods(Route $route): string
