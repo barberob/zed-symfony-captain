@@ -1,5 +1,6 @@
 /vendor/
 /target/
+/dist/
 /.phpunit.cache/
 /.phpunit.result.cache
 /extension.wasm

@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+
+      - name: Validate the tag matches the pinned version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(sed -n 's/^version = "\(.*\)"/\1/p' extension.toml | head -n1)"
+          rust_tag="$(sed -n 's/.*LSP_RELEASE_TAG: &str = "\(.*\)".*/\1/p' src/lib.rs | head -n1)"
+          if [ -z "$tag_version" ] || [ "$tag_version" != "$manifest_version" ] || [ "$rust_tag" != "$GITHUB_REF_NAME" ]; then
+            echo "tag '$GITHUB_REF_NAME' must match extension.toml version '$manifest_version' and src/lib.rs LSP_RELEASE_TAG '$rust_tag'"
+            exit 1
+          fi
+
+      - name: Build the LSP distribution bundle
+        run: php lsp/build.php
+
+      - name: Create release and attach the LSP script
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/symfony-captain-lsp.php
+          generate_release_notes: true

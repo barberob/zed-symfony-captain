@@ -9,3 +9,8 @@ repository = "https://github.com/symfony-captain/symfony-captain"
 [language_servers.symfony-captain]
 name = "Symfony Captain LSP"
 languages = ["PHP"]
+
+[[capabilities]]
+kind = "download_file"
+host = "github.com"
+path = ["symfony-captain", "symfony-captain", "**"]
