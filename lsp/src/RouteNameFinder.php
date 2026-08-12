@@ -69,7 +69,7 @@ final class RouteNameFinder
      */
     public function findAt(string $source, int $line, int $character): ?RouteNameOccurrence
     {
-        $offset = $this->byteOffsetAt($source, $line, $character);
+        $offset = Position::toByteOffset($source, $line, $character);
 
         foreach ($this->find($source) as $occurrence) {
             if ($offset >= $occurrence->startOffset && $offset < $occurrence->endOffset) {
@@ -111,52 +111,5 @@ final class RouteNameFinder
         $value = substr($text, 1, -1);
 
         return str_replace(['\\\\', '\\"', '\\$'], ['\\', '"', '$'], $value);
-    }
-
-    private function byteOffsetAt(string $source, int $line, int $character): int
-    {
-        $offset = 0;
-        $length = strlen($source);
-
-        while ($offset < $length && $line > 0) {
-            if ("\n" === $source[$offset]) {
-                $line--;
-            }
-
-            $offset++;
-        }
-
-        $units = 0;
-
-        while ($offset < $length && $units < $character) {
-            $units += $this->utf16Units($source[$offset]);
-            $offset += $this->utf8Bytes($source[$offset]);
-        }
-
-        return $offset;
-    }
-
-    private function utf8Bytes(string $firstByte): int
-    {
-        $byte = ord($firstByte);
-
-        if ($byte < 0x80) {
-            return 1;
-        }
-
-        if ($byte < 0xE0) {
-            return 2;
-        }
-
-        if ($byte < 0xF0) {
-            return 3;
-        }
-
-        return 4;
-    }
-
-    private function utf16Units(string $firstByte): int
-    {
-        return 0xF0 <= ord($firstByte) ? 2 : 1;
     }
 }

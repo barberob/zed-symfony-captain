@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use SymfonyCaptain\Lsp\LspServer;
 use SymfonyCaptain\Lsp\MessageStream;
 use SymfonyCaptain\Lsp\Uri;
+use SymfonyCaptain\Tests\PositionTestHelper;
 
 final class LspServerTest extends TestCase
 {
@@ -33,6 +34,7 @@ final class LspServerTest extends TestCase
         self::assertArrayHasKey('capabilities', $response['result']);
         self::assertTrue($response['result']['capabilities']['workspaceSymbolProvider']);
         self::assertTrue($response['result']['capabilities']['definitionProvider']);
+        self::assertSame(["'", '"'], $response['result']['capabilities']['completionProvider']['triggerCharacters']);
         self::assertTrue($response['result']['capabilities']['textDocumentSync']['save']);
     }
 
@@ -209,6 +211,123 @@ final class LspServerTest extends TestCase
         self::assertSame([], $messages[1]['result']);
     }
 
+    public function testTextDocumentCompletionReturnsSortedCompletionList(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $list = $response['result'];
+        self::assertFalse($list['isIncomplete']);
+
+        $items = $list['items'];
+        self::assertCount(6, $items);
+        self::assertSame(['app_callback', 'app_home', 'app_legacy_home', 'app_post_create', 'app_post_index', 'app_post_show'], array_column($items, 'label'));
+
+        $show = $this->completionItemByLabel($items, 'app_post_show');
+        self::assertNotNull($show);
+        self::assertSame(21, $show['kind']);
+        self::assertSame('GET|HEAD /posts/{id}', $show['detail']);
+        self::assertSame('App\Controller\PostController::show', $show['documentation']);
+    }
+
+    public function testTextDocumentCompletionOnNonRoutePositionReturnsEmptyList(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $list = $messages[1]['result'];
+        self::assertFalse($list['isIncomplete']);
+        self::assertSame([], $list['items']);
+    }
+
+    public function testTextDocumentCompletionOnNonSymfonyProjectReturnsEmptyList(): void
+    {
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath(__DIR__ . '/Fixture/Empty/foo.php')],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $list = $messages[1]['result'];
+        self::assertFalse($list['isIncomplete']);
+        self::assertSame([], $list['items']);
+    }
+
+    public function testTextDocumentCompletionOnNonPhpFileReturnsEmptyList(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file . '.txt')],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $list = $messages[1]['result'];
+        self::assertFalse($list['isIncomplete']);
+        self::assertSame([], $list['items']);
+    }
+
     public function testDidSaveOnConfigRoutesFileRebuildsIndex(): void
     {
         $root = $this->tempRefreshRoot();
@@ -314,6 +433,22 @@ final class LspServerTest extends TestCase
         foreach ($symbols as $symbol) {
             if ($symbol['name'] === $name) {
                 return $symbol;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, mixed>|null
+     */
+    private function completionItemByLabel(array $items, string $label): ?array
+    {
+        foreach ($items as $item) {
+            if ($item['label'] === $label) {
+                return $item;
             }
         }
 

@@ -6,6 +6,7 @@ namespace SymfonyCaptain\Tests;
 
 use PHPUnit\Framework\TestCase;
 use SymfonyCaptain\Lsp\RouteNameFinder;
+use SymfonyCaptain\Tests\PositionTestHelper;
 
 final class RouteNameFinderTest extends TestCase
 {
@@ -135,7 +136,7 @@ final class RouteNameFinderTest extends TestCase
         return $this->redirectToRoute('app_post_show');
         PHP;
 
-        [$line, $character] = $this->positionIn($source, 'app_post_show');
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
 
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character + 5);
 
@@ -151,7 +152,7 @@ final class RouteNameFinderTest extends TestCase
         return $this->redirectToRoute('app_home');
         PHP;
 
-        [$line, $character] = $this->positionIn($source, 'app_home');
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_home');
 
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character - 1);
 
@@ -167,7 +168,7 @@ final class RouteNameFinderTest extends TestCase
         return $this->redirectToRoute('app_home');
         PHP;
 
-        [$line, $character] = $this->positionIn($source, 'redirectToRoute');
+        [$line, $character] = PositionTestHelper::positionIn($source, 'redirectToRoute');
 
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character + 2);
 
@@ -182,7 +183,7 @@ final class RouteNameFinderTest extends TestCase
         $url = $this->generateUrl('app_home');
         PHP;
 
-        [$line, $character] = $this->positionIn($source, 'generateUrl');
+        [$line, $character] = PositionTestHelper::positionIn($source, 'generateUrl');
 
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
 
@@ -197,7 +198,7 @@ final class RouteNameFinderTest extends TestCase
         return $this->redirectToRoute('app_home');
         PHP;
 
-        [$line, $character] = $this->positionIn($source, "'app_home'");
+        [$line, $character] = PositionTestHelper::positionIn($source, "'app_home'");
 
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character + 12);
 
@@ -237,27 +238,5 @@ final class RouteNameFinderTest extends TestCase
 
         self::assertNotNull($occurrence);
         self::assertSame('héllo🎉app_home', $occurrence->name);
-    }
-
-    /**
-     * Returns the 0-based line and character of the first occurrence of the
-     * given needle in the source, where character is expressed in UTF-16 code
-     * units as LSP positions are.
-     *
-     * @return array{0: int, 1: int}
-     */
-    private function positionIn(string $source, string $needle): array
-    {
-        $lines = explode("\n", $source);
-
-        foreach ($lines as $line => $text) {
-            $offset = strpos($text, $needle);
-
-            if (false !== $offset) {
-                return [$line, $offset];
-            }
-        }
-
-        self::fail(sprintf('Needle "%s" not found in source.', $needle));
     }
 }

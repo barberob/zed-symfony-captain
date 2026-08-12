@@ -16,4 +16,13 @@ final class Route
         public readonly string $controller,
     ) {
     }
+
+    /**
+     * The HTTP methods as a pipe separated label, or `ANY` when the route
+     * accepts every method.
+     */
+    public function methodsLabel(): string
+    {
+        return [] === $this->methods ? 'ANY' : implode('|', $this->methods);
+    }
 }

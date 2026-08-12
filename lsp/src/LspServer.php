@@ -65,6 +65,9 @@ final class LspServer
                             ],
                             'workspaceSymbolProvider' => true,
                             'definitionProvider' => true,
+                            'completionProvider' => [
+                                'triggerCharacters' => ["'", '"'],
+                            ],
                         ],
                     ],
                 ]));
@@ -98,6 +101,14 @@ final class LspServer
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => $this->definition($message['params'] ?? []),
+                ]));
+
+                return true;
+            case 'textDocument/completion':
+                $this->ensureIndex($stream);
+                $stream->write($this->encode([
+                    'id' => $id,
+                    'result' => $this->completion($message['params'] ?? []),
                 ]));
 
                 return true;
@@ -223,32 +234,19 @@ final class LspServer
             return [];
         }
 
-        $uri = $params['textDocument']['uri'] ?? null;
-        $position = $params['position'] ?? null;
+        $position = $this->position($params);
 
-        if (!is_string($uri) || !is_array($position)) {
+        if (null === $position) {
             return [];
         }
 
-        $file = Uri::toPath($uri);
+        $source = $this->phpSource($params);
 
-        if (null === $file || !is_file($file) || !str_ends_with($file, '.php')) {
+        if (null === $source) {
             return [];
         }
 
-        $source = file_get_contents($file);
-
-        if (false === $source) {
-            return [];
-        }
-
-        $line = $position['line'] ?? null;
-        $character = $position['character'] ?? null;
-
-        if (!is_int($line) || !is_int($character)) {
-            return [];
-        }
-
+        [$line, $character] = $position;
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
 
         if (null === $occurrence) {
@@ -262,6 +260,96 @@ final class LspServer
         }
 
         return [$entry->location->toLocation()];
+    }
+
+    /**
+     * Builds the `textDocument/completion` response for the cursor position:
+     * every route name as a completion item when the cursor is on a route
+     * reference, or an empty `CompletionList` otherwise. The result is never
+     * an error.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return array{isIncomplete: false, items: list<array<string, mixed>>}
+     */
+    private function completion(array $params): array
+    {
+        if (null === $this->routeIndex) {
+            return $this->emptyCompletionList();
+        }
+
+        $position = $this->position($params);
+        $source = $this->phpSource($params);
+
+        if (null === $position || null === $source) {
+            return $this->emptyCompletionList();
+        }
+
+        [$line, $character] = $position;
+
+        return [
+            'isIncomplete' => false,
+            'items' => (new RouteNameCompleter($this->routeIndex))->complete($source, $line, $character),
+        ];
+    }
+
+    /**
+     * @return array{isIncomplete: false, items: list<array<string, mixed>>}
+     */
+    private function emptyCompletionList(): array
+    {
+        return ['isIncomplete' => false, 'items' => []];
+    }
+
+    /**
+     * Extracts the LSP position from a request, or null when it is missing or
+     * malformed.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return array{0: int, 1: int}|null
+     */
+    private function position(array $params): ?array
+    {
+        $position = $params['position'] ?? null;
+
+        if (!is_array($position)) {
+            return null;
+        }
+
+        $line = $position['line'] ?? null;
+        $character = $position['character'] ?? null;
+
+        if (!is_int($line) || !is_int($character)) {
+            return null;
+        }
+
+        return [$line, $character];
+    }
+
+    /**
+     * Reads the source of the PHP file a request targets, or null when the
+     * target is not an existing PHP file.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function phpSource(array $params): ?string
+    {
+        $uri = $params['textDocument']['uri'] ?? null;
+
+        if (!is_string($uri)) {
+            return null;
+        }
+
+        $file = Uri::toPath($uri);
+
+        if (null === $file || !is_file($file) || !str_ends_with($file, '.php')) {
+            return null;
+        }
+
+        $source = file_get_contents($file);
+
+        return false === $source ? null : $source;
     }
 
     /**

@@ -30,7 +30,7 @@ final class WorkspaceSymbols
             $symbols[] = [
                 'name' => sprintf('Route: %s', $entry->route->name),
                 'kind' => self::SYMBOL_KIND_FUNCTION,
-                'detail' => sprintf('%s %s', $this->methods($entry->route), $entry->route->path),
+                'detail' => sprintf('%s %s', $entry->route->methodsLabel(), $entry->route->path),
                 'location' => $this->location($entry),
             ];
         }
@@ -48,10 +48,5 @@ final class WorkspaceSymbols
         }
 
         return (new RouteLocation($this->projectRoot . '/bin/console', 1))->toLocation();
-    }
-
-    private function methods(Route $route): string
-    {
-        return [] === $route->methods ? 'ANY' : implode('|', $route->methods);
     }
 }
