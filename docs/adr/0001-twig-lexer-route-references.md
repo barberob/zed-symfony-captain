@@ -1,0 +1,3 @@
+# Twig route references are parsed with Twig's own lexer
+
+Twig templates have no core tokenizer, so route references in `path()`/`url()` calls are detected with Twig's own lexer (`Environment::tokenize()`) rather than regex, to keep the same tokenizer-level precision as the PHP `PhpToken`-based finder. Regex was rejected because templates are mostly raw HTML/JS/CSS and would false-positive on things like `app.request.path('…')`, while the lexer only yields genuine function calls. The lexer comes from the project's own `twig/twig` (a dev-dependency in tests), and byte offsets are tracked by walking the token stream, which Twig tokens do not expose.
