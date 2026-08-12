@@ -22,5 +22,9 @@ Status: resolved
 - [x] The download capability is declared in `extension.toml` and restricted to the trusted host.
 - [x] A Zed user setting allows overriding the downloaded LSP path for local development or restricted environments.
 - [x] A GitHub Actions workflow creates a release and attaches the PHP LSP script when a version tag is pushed.
-- [ ] The extension can be installed as a dev extension and successfully downloads and launches the released LSP script. (Manual validation against a real GitHub release; requires pushing the first `v*` tag.)
+- [x] The extension can be installed as a dev extension and successfully downloads and launches the released LSP script. (Manual validation against a real GitHub release; requires pushing the first `v*` tag.)
 - [x] Documentation explains installation and local development setup.
+
+## Release validation
+
+Pushed tag `v0.1.0` to `barberob/zed-symfony-captain`; the release workflow built the bundle and attached `symfony-captain-lsp.php` (25354 bytes) to the `v0.1.0` GitHub release. Downloaded the asset and verified it launches and serves workspace symbols (128 routes) and go-to-definition against `/home/benoit/aih/docker/approche`. The release host was corrected from the nonexistent `symfony-captain/symfony-captain` to `barberob/zed-symfony-captain` in `src/lib.rs`, `extension.toml`, and `README.md`.
