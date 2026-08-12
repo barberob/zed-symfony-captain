@@ -48,6 +48,17 @@ final class RouteProviderTest extends TestCase
         self::assertSame('', $byName['app_callback']->route->controller);
     }
 
+    public function testInternalRoutesAreExcludedFromIndex(): void
+    {
+        $entries = $this->buildIndex(__DIR__ . '/Fixture/Project');
+        $byName = $this->indexByName($entries);
+
+        self::assertCount(6, $entries);
+        self::assertArrayNotHasKey('_wdt', $byName);
+        self::assertArrayNotHasKey('_profiler', $byName);
+        self::assertArrayNotHasKey('_preview_error', $byName);
+    }
+
     public function testBuildThrowsWhenConsoleIsMissing(): void
     {
         $this->expectException(RouteProviderException::class);

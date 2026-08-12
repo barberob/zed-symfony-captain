@@ -52,6 +52,33 @@ final class DebugRouterParserTest extends TestCase
         self::assertSame('', $routes[0]->controller);
     }
 
+    public function testParseSkipsInternalRoutes(): void
+    {
+        $json = json_encode([
+            'app_home' => [
+                'path' => '/',
+                'defaults' => ['_controller' => 'App\\Controller\\HomeController::index'],
+            ],
+            '_wdt' => [
+                'path' => '/_wdt/{token}',
+                'defaults' => ['_controller' => 'Symfony\\Bundle\\WebProfilerBundle\\Controller\\ProfilerController::toolbar'],
+            ],
+            '_profiler' => [
+                'path' => '/_profiler/{token}',
+                'defaults' => [],
+            ],
+            '_preview_error' => [
+                'path' => '/_error/{code}.{_format}',
+                'defaults' => [],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $routes = (new DebugRouterParser())->parse($json);
+
+        self::assertCount(1, $routes);
+        self::assertSame('app_home', $routes[0]->name);
+    }
+
     public function testParseInvalidJsonReturnsEmptyIndex(): void
     {
         self::assertSame([], (new DebugRouterParser())->parse('not-json'));

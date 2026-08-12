@@ -71,6 +71,36 @@ $routes = [
         'requirements' => 'NO CUSTOM',
         'options' => [],
     ],
+    '_wdt' => [
+        'path' => '/_wdt/{token}',
+        'host' => 'ANY',
+        'scheme' => 'ANY',
+        'method' => 'ANY',
+        'class' => 'Symfony\\Bundle\\WebProfilerBundle\\Controller\\ProfilerController',
+        'defaults' => ['_controller' => 'Symfony\\Bundle\\WebProfilerBundle\\Controller\\ProfilerController::toolbar'],
+        'requirements' => 'NO CUSTOM',
+        'options' => [],
+    ],
+    '_profiler' => [
+        'path' => '/_profiler/{token}',
+        'host' => 'ANY',
+        'scheme' => 'ANY',
+        'method' => 'ANY',
+        'class' => 'Symfony\\Bundle\\WebProfilerBundle\\Controller\\ProfilerController',
+        'defaults' => ['_controller' => 'Symfony\\Bundle\\WebProfilerBundle\\Controller\\ProfilerController::panel'],
+        'requirements' => 'NO CUSTOM',
+        'options' => [],
+    ],
+    '_preview_error' => [
+        'path' => '/_error/{code}.{_format}',
+        'host' => 'ANY',
+        'scheme' => 'ANY',
+        'method' => 'ANY',
+        'class' => 'Symfony\\Component\\HttpKernel\\Controller\\ErrorController',
+        'defaults' => ['_controller' => 'Symfony\\Component\\HttpKernel\\Controller\\ErrorController::preview'],
+        'requirements' => 'NO CUSTOM',
+        'options' => [],
+    ],
 ];
 
 echo json_encode($routes, JSON_PRETTY_PRINT) . PHP_EOL;

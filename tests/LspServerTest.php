@@ -252,6 +252,36 @@ final class LspServerTest extends TestCase
         self::assertSame('App\Controller\PostController::show', $show['documentation']);
     }
 
+    public function testTextDocumentCompletionExcludesInternalRoutes(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $labels = array_column($messages[1]['result']['items'], 'label');
+
+        self::assertNotContains('_wdt', $labels);
+        self::assertNotContains('_profiler', $labels);
+        self::assertNotContains('_preview_error', $labels);
+    }
+
     public function testTextDocumentCompletionOnNonRoutePositionReturnsEmptyList(): void
     {
         $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';

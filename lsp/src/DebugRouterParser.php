@@ -11,7 +11,9 @@ final class DebugRouterParser
      *
      * The output is an object keyed by route name. The controller lives in
      * `defaults._controller`, the methods in the `method` field as a pipe
-     * separated string (or `ANY`).
+     * separated string (or `ANY`). Symfony's internal routes, whose names are
+     * prefixed with `_` (`_wdt`, `_profiler`, `_preview_error`, …), are
+     * excluded so the index only holds navigable application routes.
      *
      * @return list<Route>
      */
@@ -26,7 +28,7 @@ final class DebugRouterParser
         $routes = [];
 
         foreach ($decoded as $name => $data) {
-            if (!is_string($name) || !is_array($data)) {
+            if (!is_string($name) || str_starts_with($name, '_') || !is_array($data)) {
                 continue;
             }
 
