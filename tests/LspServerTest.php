@@ -34,6 +34,7 @@ final class LspServerTest extends TestCase
         self::assertArrayHasKey('capabilities', $response['result']);
         self::assertTrue($response['result']['capabilities']['workspaceSymbolProvider']);
         self::assertTrue($response['result']['capabilities']['definitionProvider']);
+        self::assertTrue($response['result']['capabilities']['hoverProvider']);
         self::assertSame(["'", '"'], $response['result']['capabilities']['completionProvider']['triggerCharacters']);
         self::assertTrue($response['result']['capabilities']['textDocumentSync']['save']);
     }
@@ -356,6 +357,114 @@ final class LspServerTest extends TestCase
         $list = $messages[1]['result'];
         self::assertFalse($list['isIncomplete']);
         self::assertSame([], $list['items']);
+    }
+
+    public function testTextDocumentHoverReturnsMarkdownHover(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $hover = $response['result'];
+        self::assertSame('markdown', $hover['contents']['kind']);
+        self::assertStringContainsString('**app_post_show**', $hover['contents']['value']);
+        self::assertStringContainsString('GET|HEAD /posts/{id}', $hover['contents']['value']);
+        self::assertStringContainsString('App\\Controller\\PostController::show', $hover['contents']['value']);
+        self::assertArrayHasKey('range', $hover);
+    }
+
+    public function testTextDocumentHoverOnUnknownRouteReturnsNull(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_not_defined');
+        $character += 2;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
+    }
+
+    public function testTextDocumentHoverOnNonRoutePositionReturnsNull(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
+    }
+
+    public function testTextDocumentHoverOnNonSymfonyProjectReturnsNull(): void
+    {
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath(__DIR__ . '/Fixture/Empty/foo.php')],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
     }
 
     public function testDidSaveOnConfigRoutesFileRebuildsIndex(): void

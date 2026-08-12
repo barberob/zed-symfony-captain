@@ -65,6 +65,7 @@ final class LspServer
                             ],
                             'workspaceSymbolProvider' => true,
                             'definitionProvider' => true,
+                            'hoverProvider' => true,
                             'completionProvider' => [
                                 'triggerCharacters' => ["'", '"'],
                             ],
@@ -109,6 +110,14 @@ final class LspServer
                 $stream->write($this->encode([
                     'id' => $id,
                     'result' => $this->completion($message['params'] ?? []),
+                ]));
+
+                return true;
+            case 'textDocument/hover':
+                $this->ensureIndex($stream);
+                $stream->write($this->encode([
+                    'id' => $id,
+                    'result' => $this->hover($message['params'] ?? []),
                 ]));
 
                 return true;
@@ -234,19 +243,13 @@ final class LspServer
             return [];
         }
 
-        $position = $this->position($params);
+        $cursor = $this->cursor($params);
 
-        if (null === $position) {
+        if (null === $cursor) {
             return [];
         }
 
-        $source = $this->phpSource($params);
-
-        if (null === $source) {
-            return [];
-        }
-
-        [$line, $character] = $position;
+        [$line, $character, $source] = $cursor;
         $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
 
         if (null === $occurrence) {
@@ -278,14 +281,13 @@ final class LspServer
             return $this->emptyCompletionList();
         }
 
-        $position = $this->position($params);
-        $source = $this->phpSource($params);
+        $cursor = $this->cursor($params);
 
-        if (null === $position || null === $source) {
+        if (null === $cursor) {
             return $this->emptyCompletionList();
         }
 
-        [$line, $character] = $position;
+        [$line, $character, $source] = $cursor;
 
         return [
             'isIncomplete' => false,
@@ -299,6 +301,55 @@ final class LspServer
     private function emptyCompletionList(): array
     {
         return ['isIncomplete' => false, 'items' => []];
+    }
+
+    /**
+     * Builds the `textDocument/hover` response for the cursor position: route
+     * information when the cursor is on a known route reference, or null
+     * otherwise. The result is never an error.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return array<string, mixed>|null
+     */
+    private function hover(array $params): ?array
+    {
+        if (null === $this->routeIndex) {
+            return null;
+        }
+
+        $cursor = $this->cursor($params);
+
+        if (null === $cursor) {
+            return null;
+        }
+
+        [$line, $character, $source] = $cursor;
+
+        return (new RouteNameHover($this->routeIndex))->hover($source, $line, $character);
+    }
+
+    /**
+     * Extracts the cursor context (line, character, PHP source) shared by the
+     * definition, completion, and hover handlers, or null when the request has
+     * no usable position or targets a non-PHP file.
+     *
+     * @param array<string, mixed> $params
+     *
+     * @return array{0: int, 1: int, 2: string}|null
+     */
+    private function cursor(array $params): ?array
+    {
+        $position = $this->position($params);
+        $source = $this->phpSource($params);
+
+        if (null === $position || null === $source) {
+            return null;
+        }
+
+        [$line, $character] = $position;
+
+        return [$line, $character, $source];
     }
 
     /**

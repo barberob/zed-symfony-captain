@@ -33,6 +33,35 @@ final class Position
         return $offset;
     }
 
+    /**
+     * Converts a byte offset into the source into an LSP `Position` (0-based
+     * line and character in UTF-16 code units).
+     *
+     * @return array{line: int, character: int}
+     */
+    public static function toPosition(string $source, int $byteOffset): array
+    {
+        $line = 0;
+        $lineStart = 0;
+        $length = strlen($source);
+
+        for ($i = 0; $i < $byteOffset && $i < $length; $i++) {
+            if ("\n" === $source[$i]) {
+                $line++;
+                $lineStart = $i + 1;
+            }
+        }
+
+        $character = 0;
+
+        while ($lineStart < $byteOffset) {
+            $character += self::utf16Units($source[$lineStart]);
+            $lineStart += self::utf8Bytes($source[$lineStart]);
+        }
+
+        return ['line' => $line, 'character' => $character];
+    }
+
     private static function utf8Bytes(string $firstByte): int
     {
         $byte = ord($firstByte);

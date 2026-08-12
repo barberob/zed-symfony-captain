@@ -42,7 +42,7 @@ final class RouteNameCompleter
             $items[] = [
                 'label' => $entry->route->name,
                 'kind' => self::COMPLETION_ITEM_KIND_CONSTANT,
-                'detail' => sprintf('%s %s', $entry->route->methodsLabel(), $entry->route->path),
+                'detail' => $entry->route->detail(),
                 'documentation' => $entry->route->controller,
             ];
         }

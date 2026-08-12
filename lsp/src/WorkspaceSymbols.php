@@ -30,7 +30,7 @@ final class WorkspaceSymbols
             $symbols[] = [
                 'name' => sprintf('Route: %s', $entry->route->name),
                 'kind' => self::SYMBOL_KIND_FUNCTION,
-                'detail' => sprintf('%s %s', $entry->route->methodsLabel(), $entry->route->path),
+                'detail' => $entry->route->detail(),
                 'location' => $this->location($entry),
             ];
         }

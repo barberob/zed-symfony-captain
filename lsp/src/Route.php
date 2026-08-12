@@ -25,4 +25,13 @@ final class Route
     {
         return [] === $this->methods ? 'ANY' : implode('|', $this->methods);
     }
+
+    /**
+     * The presentation detail `<METHOD> <path>` shared by the symbol palette,
+     * completion items, and hover.
+     */
+    public function detail(): string
+    {
+        return sprintf('%s %s', $this->methodsLabel(), $this->path);
+    }
 }
