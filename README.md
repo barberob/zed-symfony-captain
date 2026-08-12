@@ -62,7 +62,7 @@ You can obtain a copy of the script by running the build locally (see below) or 
    }
    ```
 
-   A `.zed/settings.json` with a machine-specific path is committed at the repository root; adjust it to your checkout. The source script `lsp/symfony-captain-lsp.php` loads its classes through the repository autoloader, so run `composer install` first.
+   Put it in `.zed/settings.json` at the repository root (it is gitignored, so keep it out of version control). The source script `lsp/symfony-captain-lsp.php` loads its classes through the repository autoloader, so run `composer install` first.
 
 ### Building the LSP distribution bundle
 
