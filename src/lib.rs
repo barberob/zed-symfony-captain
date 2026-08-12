@@ -9,7 +9,7 @@ use zed_extension_api::{
 /// to trigger `.github/workflows/release.yml`.
 const LSP_RELEASE_TAG: &str = "v0.1.0";
 const LSP_SCRIPT_NAME: &str = "symfony-captain-lsp.php";
-const LSP_REPOSITORY: &str = "symfony-captain/symfony-captain";
+const LSP_REPOSITORY: &str = "barberob/zed-symfony-captain";
 
 fn lsp_download_url() -> String {
     format!(

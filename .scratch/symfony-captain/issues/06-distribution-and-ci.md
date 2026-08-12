@@ -4,7 +4,7 @@ Status: resolved
 
 - `lsp/build.php` concatenates the `SymfonyCaptain\Lsp` classes into a single self-contained `dist/symfony-captain-lsp.php` bundle (no dependency on the repo composer autoloader), which is what gets attached to releases.
 - `src/lib.rs` resolves the LSP path: a user `lsp.symfony-captain.binary.path` setting overrides it; otherwise the extension downloads `symfony-captain-lsp.php` from the GitHub release asset into the extension working directory on first use and caches it. The `LSP_RELEASE_TAG` constant must stay in sync with `extension.toml` `version` and the pushed tag.
-- `extension.toml` declares the `download_file` capability restricted to `github.com` and the `symfony-captain/symfony-captain` repository path.
+- `extension.toml` declares the `download_file` capability restricted to `github.com` and the `barberob/zed-symfony-captain` repository path.
 - `.github/workflows/release.yml` builds the LSP bundle and attaches it to a GitHub release when a `v*` tag is pushed.
 - `.zed/settings.json` points the dev extension at the local `lsp/symfony-captain-lsp.php`, bypassing the download while developing.
 - `README.md` documents installation, the restricted-environment override, local development, tests, and releasing.

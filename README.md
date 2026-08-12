@@ -13,7 +13,7 @@ A [Zed](https://zed.dev) extension that brings Symfony route navigation to your 
 
 ## Installation
 
-The extension is installed from the Zed extensions page. On first use it downloads the language server script (`symfony-captain-lsp.php`) from the project's [GitHub releases](https://github.com/symfony-captain/symfony-captain/releases) and caches it in the extension working directory, then launches it with `php`.
+The extension is installed from the Zed extensions page. On first use it downloads the language server script (`symfony-captain-lsp.php`) from the project's [GitHub releases](https://github.com/barberob/zed-symfony-captain/releases) and caches it in the extension working directory, then launches it with `php`.
 
 ### Restricted environments
 

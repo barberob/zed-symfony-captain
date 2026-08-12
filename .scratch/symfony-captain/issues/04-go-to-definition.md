@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # 04 — Go to definition from PHP route name strings
 
@@ -7,8 +7,14 @@ Status: ready-for-agent
 **Blocked by:** 02 — Build the route index from Symfony console and reflection.
 
 **Acceptance criteria:**
-- [ ] The LSP parses PHP source to detect route name string arguments in calls to `generate`, `generateUrl`, and `redirectToRoute`.
-- [ ] The LSP implements `textDocument/definition` and returns the controller file/line when the cursor is on a recognized route name string.
-- [ ] The parser uses PHP’s native tokenizer and ignores route-like strings that are not arguments to the recognized methods.
-- [ ] Tests feed PHP snippets and assert the correct definition locations.
-- [ ] Manual test in Zed confirms `Ctrl + Click` on a route name opens the controller.
+- [x] The LSP parses PHP source to detect route name string arguments in calls to `generate`, `generateUrl`, and `redirectToRoute`.
+- [x] The LSP implements `textDocument/definition` and returns the controller file/line when the cursor is on a recognized route name string.
+- [x] The parser uses PHP’s native tokenizer and ignores route-like strings that are not arguments to the recognized methods.
+- [x] Tests feed PHP snippets and assert the correct definition locations.
+- [x] Manual test in Zed confirms `Ctrl + Click` on a route name opens the controller.
+
+## Completed
+
+- `RouteNameFinder` uses `PhpToken` to detect the first string argument of `generate`, `generateUrl`, and `redirectToRoute`, with byte-offset → UTF-16 position mapping for `findAt`.
+- `LspServer::definition()` returns the controller file/line for the route name under the cursor.
+- `RouteNameFinderTest` and `LspServerTest` cover snippets and fixtures; verified manually against `/home/benoit/aih/docker/approche` (`redirectToRoute('type_equipement_index')` → controller method).
