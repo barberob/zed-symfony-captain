@@ -4,12 +4,16 @@
 
 **Blocked by:** 01 — Route reference finder seam.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The finder implements the `RouteReferenceFinder` seam.
-- [ ] Detects `path()` and `url()` with single- and double-quoted route names in both output tags (`{{ … }}`) and logic blocks (`{% set u = path('…') %}`).
-- [ ] Ignores method access like `app.request.path('…')`.
-- [ ] Handles the empty string right after the opening quote.
-- [ ] Returns suggestions on half-typed, lexer-invalid source (`{{ path('use…`) via the line-scoped fallback.
-- [ ] Exposes the byte range of the route name string for cursor and hover-range use.
-- [ ] `twig/twig` is a dev dependency; unit tests at the detector seam cover the cases above.
+- [x] The finder implements the `RouteReferenceFinder` seam.
+- [x] Detects `path()` and `url()` with single- and double-quoted route names in both output tags (`{{ … }}`) and logic blocks (`{% set u = path('…') %}`).
+- [x] Ignores method access like `app.request.path('…')`.
+- [x] Handles the empty string right after the opening quote.
+- [x] Returns suggestions on half-typed, lexer-invalid source (`{{ path('use…`) via the line-scoped fallback.
+- [x] Exposes the byte range of the route name string for cursor and hover-range use.
+- [x] `twig/twig` is a dev dependency; unit tests at the detector seam cover the cases above.
+
+## Comments
+
+Resolved by `a37f613` — feat: find route references in Twig templates with Twig's lexer. Full suite green (122 tests, 297 assertions).
