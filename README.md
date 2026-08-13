@@ -10,6 +10,7 @@ A [Zed](https://zed.dev) extension that brings Symfony route navigation to your 
 - Zed
 - PHP 8.2+ available on your `PATH`
 - A Symfony project that is bootable (`bin/console debug:router --format=json` must succeed)
+- For Twig templates: the official [Twig extension](https://github.com/YussufSassi/zed-twig) must be installed. It provides the Twig grammar and language; Symfony Captain's language server attaches to that `Twig` language, so Twig navigation, completion, hover, and diagnostics work without shipping a competing grammar.
 
 ## Installation
 
