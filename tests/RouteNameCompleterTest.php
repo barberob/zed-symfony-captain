@@ -9,6 +9,7 @@ use SymfonyCaptain\Lsp\Route;
 use SymfonyCaptain\Lsp\RouteEntry;
 use SymfonyCaptain\Lsp\RouteIndex;
 use SymfonyCaptain\Lsp\RouteNameCompleter;
+use SymfonyCaptain\Lsp\RouteNameFinder;
 use SymfonyCaptain\Tests\PositionTestHelper;
 
 final class RouteNameCompleterTest extends TestCase
@@ -23,7 +24,7 @@ final class RouteNameCompleterTest extends TestCase
         $url = $this->generate('app_home');
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         self::assertSame(['app_callback', 'app_home', 'app_post_show'], $this->labels($items));
     }
@@ -36,7 +37,7 @@ final class RouteNameCompleterTest extends TestCase
         $url = $this->generate('app_home');
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         $home = $this->itemByLabel($items, 'app_home');
         self::assertNotNull($home);
@@ -54,7 +55,7 @@ final class RouteNameCompleterTest extends TestCase
         $url = $this->generate('app_home');
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         $callback = $this->itemByLabel($items, 'app_callback');
         self::assertNotNull($callback);
@@ -72,7 +73,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, "redirectToRoute('");
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 17);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 17);
 
         self::assertSame(['app_callback', 'app_home', 'app_post_show'], $this->labels($items));
     }
@@ -87,7 +88,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'use');
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 3);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 3);
 
         self::assertSame(['app_callback', 'app_home', 'app_post_show'], $this->labels($items));
     }
@@ -102,7 +103,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, "generate('");
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 10);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 10);
 
         self::assertSame(['app_callback', 'app_home', 'app_post_show'], $this->labels($items));
     }
@@ -117,7 +118,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'routeNam');
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 8);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 8);
 
         self::assertSame([], $items);
     }
@@ -130,7 +131,7 @@ final class RouteNameCompleterTest extends TestCase
         // $this->generate('app_home')
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         self::assertSame([], $items);
     }
@@ -143,7 +144,7 @@ final class RouteNameCompleterTest extends TestCase
         $message = "call generate('app_home')";
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         self::assertSame([], $items);
     }
@@ -158,7 +159,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'generate');
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 2);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 2);
 
         self::assertSame([], $items);
     }
@@ -173,7 +174,7 @@ final class RouteNameCompleterTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, "'app_home'");
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, $line, $character + 11);
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, $line, $character + 11);
 
         self::assertSame([], $items);
     }
@@ -186,7 +187,7 @@ final class RouteNameCompleterTest extends TestCase
         $name = 'app_home';
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         self::assertSame([], $items);
     }
@@ -199,7 +200,7 @@ final class RouteNameCompleterTest extends TestCase
         $url = $this->generateUrl('app_home', 'app_post_show');
         PHP;
 
-        $items = (new RouteNameCompleter($this->index()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_post_show'));
+        $items = (new RouteNameCompleter($this->index(), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_post_show'));
 
         self::assertSame([], $items);
     }
@@ -212,7 +213,7 @@ final class RouteNameCompleterTest extends TestCase
         $url = $this->generate('app_home');
         PHP;
 
-        $items = (new RouteNameCompleter(new RouteIndex([])))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
+        $items = (new RouteNameCompleter(new RouteIndex([]), new RouteNameFinder()))->complete($source, ...PositionTestHelper::positionIn($source, 'app_home'));
 
         self::assertSame([], $items);
     }

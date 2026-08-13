@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use SymfonyCaptain\Lsp\Route;
 use SymfonyCaptain\Lsp\RouteEntry;
 use SymfonyCaptain\Lsp\RouteIndex;
+use SymfonyCaptain\Lsp\RouteNameFinder;
 use SymfonyCaptain\Lsp\RouteNameHover;
 use SymfonyCaptain\Tests\PositionTestHelper;
 
@@ -23,7 +24,7 @@ final class RouteNameHoverTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
 
-        $hover = (new RouteNameHover($this->index()))->hover($source, $line, $character + 5);
+        $hover = (new RouteNameHover($this->index(), new RouteNameFinder()))->hover($source, $line, $character + 5);
 
         self::assertNotNull($hover);
         self::assertSame('markdown', $hover['contents']['kind']);
@@ -44,7 +45,7 @@ final class RouteNameHoverTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'app_not_defined');
 
-        $hover = (new RouteNameHover($this->index()))->hover($source, $line, $character + 2);
+        $hover = (new RouteNameHover($this->index(), new RouteNameFinder()))->hover($source, $line, $character + 2);
 
         self::assertNull($hover);
     }
@@ -59,7 +60,7 @@ final class RouteNameHoverTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'generate');
 
-        $hover = (new RouteNameHover($this->index()))->hover($source, $line, $character + 2);
+        $hover = (new RouteNameHover($this->index(), new RouteNameFinder()))->hover($source, $line, $character + 2);
 
         self::assertNull($hover);
     }
@@ -74,7 +75,7 @@ final class RouteNameHoverTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'app_callback');
 
-        $hover = (new RouteNameHover($this->index()))->hover($source, $line, $character + 2);
+        $hover = (new RouteNameHover($this->index(), new RouteNameFinder()))->hover($source, $line, $character + 2);
 
         self::assertNotNull($hover);
         self::assertSame("**app_callback**\n\n`ANY /callback`", $hover['contents']['value']);
@@ -90,7 +91,7 @@ final class RouteNameHoverTest extends TestCase
 
         [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
 
-        $hover = (new RouteNameHover(new RouteIndex([])))->hover($source, $line, $character + 2);
+        $hover = (new RouteNameHover(new RouteIndex([]), new RouteNameFinder()))->hover($source, $line, $character + 2);
 
         self::assertNull($hover);
     }

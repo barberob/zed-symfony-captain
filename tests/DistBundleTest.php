@@ -49,7 +49,9 @@ final class DistBundleTest extends TestCase
         self::assertStringContainsString('$server->run(new MessageStream(STDIN, STDOUT));', $bundle);
 
         foreach (glob(__DIR__ . '/../lsp/src/*.php') as $source) {
-            self::assertStringContainsString('final class ' . basename($source, '.php'), $bundle);
+            $declaration = preg_quote(basename($source, '.php'), '/');
+
+            self::assertMatchesRegularExpression('/\b(?:final class|interface) ' . $declaration . '\b/', $bundle);
         }
     }
 

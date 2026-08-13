@@ -239,4 +239,91 @@ final class RouteNameFinderTest extends TestCase
         self::assertNotNull($occurrence);
         self::assertSame('héllo🎉app_home', $occurrence->name);
     }
+
+    public function testIsAtRouteReferenceMatchesCursorOnRouteName(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        return $this->redirectToRoute('app_post_show');
+        PHP;
+
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+
+        self::assertTrue((new RouteNameFinder())->isAtRouteReference($source, $line, $character + 5));
+    }
+
+    public function testIsAtRouteReferenceMatchesHalfTypedSource(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        return $this->generate('use
+        PHP;
+
+        [$line, $character] = PositionTestHelper::positionIn($source, 'use');
+
+        self::assertTrue((new RouteNameFinder())->isAtRouteReference($source, $line, $character + 3));
+    }
+
+    public function testIsAtRouteReferenceMatchesOpeningQuoteAlone(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        return $this->generate('
+        PHP;
+
+        [$line, $character] = PositionTestHelper::positionIn($source, "generate('");
+
+        self::assertTrue((new RouteNameFinder())->isAtRouteReference($source, $line, $character + 10));
+    }
+
+    public function testIsAtRouteReferenceFalseOnMethodName(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        return $this->redirectToRoute('app_home');
+        PHP;
+
+        [$line, $character] = PositionTestHelper::positionIn($source, 'redirectToRoute');
+
+        self::assertFalse((new RouteNameFinder())->isAtRouteReference($source, $line, $character + 2));
+    }
+
+    public function testIsAtRouteReferenceFalseOnNonRouteString(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        $name = 'app_home';
+        PHP;
+
+        self::assertFalse((new RouteNameFinder())->isAtRouteReference($source, ...PositionTestHelper::positionIn($source, 'app_home')));
+    }
+
+    public function testIsAtRouteReferenceFalseOnHalfTypedNonStringArgument(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        $url = $this->generateUrl($routeNam
+        PHP;
+
+        [$line, $character] = PositionTestHelper::positionIn($source, 'routeNam');
+
+        self::assertFalse((new RouteNameFinder())->isAtRouteReference($source, $line, $character + 8));
+    }
+
+    public function testIsAtRouteReferenceFalseInCommentContainingGenerateCall(): void
+    {
+        $source = <<<'PHP'
+        <?php
+
+        // $this->generate('app_home')
+        PHP;
+
+        self::assertFalse((new RouteNameFinder())->isAtRouteReference($source, ...PositionTestHelper::positionIn($source, 'app_home')));
+    }
 }

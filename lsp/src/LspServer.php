@@ -249,8 +249,8 @@ final class LspServer
             return [];
         }
 
-        [$line, $character, $source] = $cursor;
-        $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
+        [$line, $character, $source, $finder] = $cursor;
+        $occurrence = $finder->findAt($source, $line, $character);
 
         if (null === $occurrence) {
             return [];
@@ -287,11 +287,11 @@ final class LspServer
             return $this->emptyCompletionList();
         }
 
-        [$line, $character, $source] = $cursor;
+        [$line, $character, $source, $finder] = $cursor;
 
         return [
             'isIncomplete' => false,
-            'items' => (new RouteNameCompleter($this->routeIndex))->complete($source, $line, $character),
+            'items' => (new RouteNameCompleter($this->routeIndex, $finder))->complete($source, $line, $character),
         ];
     }
 
@@ -324,32 +324,49 @@ final class LspServer
             return null;
         }
 
-        [$line, $character, $source] = $cursor;
+        [$line, $character, $source, $finder] = $cursor;
 
-        return (new RouteNameHover($this->routeIndex))->hover($source, $line, $character);
+        return (new RouteNameHover($this->routeIndex, $finder))->hover($source, $line, $character);
     }
 
     /**
-     * Extracts the cursor context (line, character, PHP source) shared by the
-     * definition, completion, and hover handlers, or null when the request has
-     * no usable position or targets a non-PHP file.
+     * Extracts the cursor context (line, character, source, finder) shared by
+     * the definition, completion, and hover handlers, or null when the request
+     * has no usable position or targets a file no finder understands.
      *
      * @param array<string, mixed> $params
      *
-     * @return array{0: int, 1: int, 2: string}|null
+     * @return array{0: int, 1: int, 2: string, 3: RouteReferenceFinder}|null
      */
     private function cursor(array $params): ?array
     {
         $position = $this->position($params);
-        $source = $this->phpSource($params);
 
-        if (null === $position || null === $source) {
+        if (null === $position) {
+            return null;
+        }
+
+        $file = $this->targetFile($params);
+
+        if (null === $file) {
+            return null;
+        }
+
+        $finder = $this->routeReferenceFinder($file);
+
+        if (null === $finder) {
+            return null;
+        }
+
+        $source = file_get_contents($file);
+
+        if (false === $source) {
             return null;
         }
 
         [$line, $character] = $position;
 
-        return [$line, $character, $source];
+        return [$line, $character, $source, $finder];
     }
 
     /**
@@ -379,12 +396,12 @@ final class LspServer
     }
 
     /**
-     * Reads the source of the PHP file a request targets, or null when the
-     * target is not an existing PHP file.
+     * Resolves the path of the file a request targets, or null when the target
+     * is missing or does not exist on disk.
      *
      * @param array<string, mixed> $params
      */
-    private function phpSource(array $params): ?string
+    private function targetFile(array $params): ?string
     {
         $uri = $params['textDocument']['uri'] ?? null;
 
@@ -394,13 +411,16 @@ final class LspServer
 
         $file = Uri::toPath($uri);
 
-        if (null === $file || !is_file($file) || !str_ends_with($file, '.php')) {
-            return null;
-        }
+        return null !== $file && is_file($file) ? $file : null;
+    }
 
-        $source = file_get_contents($file);
-
-        return false === $source ? null : $source;
+    /**
+     * Selects the route reference finder for a file by its extension, or null
+     * when the server does not understand the language.
+     */
+    private function routeReferenceFinder(string $file): ?RouteReferenceFinder
+    {
+        return str_ends_with($file, '.php') ? new RouteNameFinder() : null;
     }
 
     /**

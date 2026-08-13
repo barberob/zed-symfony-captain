@@ -8,6 +8,7 @@ final class RouteNameHover
 {
     public function __construct(
         private readonly RouteIndex $index,
+        private readonly RouteReferenceFinder $finder,
     ) {
     }
 
@@ -19,7 +20,7 @@ final class RouteNameHover
      */
     public function hover(string $source, int $line, int $character): ?array
     {
-        $occurrence = (new RouteNameFinder())->findAt($source, $line, $character);
+        $occurrence = $this->finder->findAt($source, $line, $character);
 
         if (null === $occurrence) {
             return null;
