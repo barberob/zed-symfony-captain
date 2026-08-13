@@ -1,6 +1,7 @@
 /vendor/
 /target/
 /dist/
+/grammars/
 /.phpunit.cache/
 /.phpunit.result.cache
 /extension.wasm

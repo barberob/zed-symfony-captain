@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Twig Support — route navigation, completion, and hover in Twig templates
 
@@ -57,3 +57,7 @@ Extend the language server to Twig templates. A route reference inside a `path()
 
 - Twig support completes the roadmap. The remaining item after it is marketplace publication.
 - Real Symfony template projects always ship `twig/twig`, so the shipped bundle's reliance on the project's Twig covers the actual user base.
+
+## Closed
+
+Twig support shipped across three issues (01–03): the `RouteReferenceFinder` seam with the PHP finder as its first implementation, the lexer-based `TwigRouteNameFinder`, and the end-to-end wiring (`.twig`/`.twig.html` dispatch, fixture-backed protocol tests, and the Zed extension registering the Twig language so the language server attaches to templates). Verified against a real Symfony project (`approche`, 113 routes): route references in templates get go-to-definition, completion, and hover, with the underscore-prefixed internal routes excluded from the index. One caveat: if the `twig` Zed extension is also installed, its twiggy language server may add its own route suggestions (e.g. `_profiler`) since Zed merges completions from every language server on a Twig file — not something Symfony Captain emits.
