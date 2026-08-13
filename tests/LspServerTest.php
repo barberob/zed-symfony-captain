@@ -467,6 +467,389 @@ final class LspServerTest extends TestCase
         self::assertNull($messages[1]['result']);
     }
 
+    public function testTextDocumentDefinitionOnTwigTemplateReturnsControllerLocation(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $locations = $response['result'];
+        self::assertCount(1, $locations);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/PostController.php'), $locations[0]['uri']);
+        self::assertSame(16, $locations[0]['range']['start']['line']);
+    }
+
+    public function testTextDocumentDefinitionOnTwigUrlCallReturnsControllerLocation(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_home');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $locations = $messages[1]['result'];
+        self::assertCount(1, $locations);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/HomeController.php'), $locations[0]['uri']);
+        self::assertSame(11, $locations[0]['range']['start']['line']);
+    }
+
+    public function testTextDocumentDefinitionOnTwigLogicBlockReturnsControllerLocation(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_index');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $locations = $messages[1]['result'];
+        self::assertCount(1, $locations);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/PostController.php'), $locations[0]['uri']);
+        self::assertSame(11, $locations[0]['range']['start']['line']);
+    }
+
+    public function testTextDocumentDefinitionOnTwigTemplateOnUnknownRouteReturnsEmpty(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_not_defined');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertSame([], $messages[1]['result']);
+    }
+
+    public function testTextDocumentDefinitionOnTwigHtmlFileReturnsControllerLocation(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/layout.twig.html';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_index');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $locations = $messages[1]['result'];
+        self::assertCount(1, $locations);
+        self::assertSame(Uri::fromPath(__DIR__ . '/Fixture/Project/src/Controller/PostController.php'), $locations[0]['uri']);
+        self::assertSame(11, $locations[0]['range']['start']['line']);
+    }
+
+    public function testTextDocumentDefinitionOnTwigTemplateOnNonRoutePositionReturnsEmpty(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/definition', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertSame([], $messages[1]['result']);
+    }
+
+    public function testTextDocumentCompletionOnTwigTemplateReturnsSortedCompletionList(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $list = $response['result'];
+        self::assertFalse($list['isIncomplete']);
+
+        $items = $list['items'];
+        self::assertCount(6, $items);
+        self::assertSame(['app_callback', 'app_home', 'app_legacy_home', 'app_post_create', 'app_post_index', 'app_post_show'], array_column($items, 'label'));
+
+        $show = $this->completionItemByLabel($items, 'app_post_show');
+        self::assertNotNull($show);
+        self::assertSame(21, $show['kind']);
+        self::assertSame('GET|HEAD /posts/{id}', $show['detail']);
+        self::assertSame('App\Controller\PostController::show', $show['documentation']);
+    }
+
+    public function testTextDocumentCompletionOnTwigTemplateOnNonRoutePositionReturnsEmptyList(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $list = $messages[1]['result'];
+        self::assertFalse($list['isIncomplete']);
+        self::assertSame([], $list['items']);
+    }
+
+    public function testTextDocumentHoverOnTwigTemplateReturnsMarkdownHover(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_post_show');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $response = $messages[1];
+        self::assertSame(2, $response['id']);
+
+        $hover = $response['result'];
+        self::assertSame('markdown', $hover['contents']['kind']);
+        self::assertStringContainsString('**app_post_show**', $hover['contents']['value']);
+        self::assertStringContainsString('GET|HEAD /posts/{id}', $hover['contents']['value']);
+        self::assertStringContainsString('App\\Controller\\PostController::show', $hover['contents']['value']);
+        self::assertArrayHasKey('range', $hover);
+    }
+
+    public function testTextDocumentHoverOnTwigTemplateOnNonRoutePositionReturnsNull(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => 0, 'character' => 0],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
+    }
+
+    public function testTextDocumentHoverOnTwigTemplateIgnoresMethodCall(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, "path('app_home')");
+        $character += 7;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
+    }
+
+    public function testTextDocumentCompletionOnTwigTemplateInNonSymfonyProjectReturnsEmptyList(): void
+    {
+        $file = __DIR__ . '/Fixture/Empty/foo.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_home');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildRequest(2, 'textDocument/completion', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $list = $messages[1]['result'];
+        self::assertFalse($list['isIncomplete']);
+        self::assertSame([], $list['items']);
+    }
+
+    public function testTextDocumentHoverOnTwigTemplateInNonSymfonyProjectReturnsNull(): void
+    {
+        $file = __DIR__ . '/Fixture/Empty/foo.twig';
+        $source = (string) file_get_contents($file);
+        [$line, $character] = PositionTestHelper::positionIn($source, 'app_home');
+        $character += 5;
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildRequest(2, 'textDocument/hover', [
+                'textDocument' => ['uri' => Uri::fromPath($file)],
+                'position' => ['line' => $line, 'character' => $character],
+            ]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        self::assertNull($messages[1]['result']);
+    }
+
     public function testDidSaveOnConfigRoutesFileRebuildsIndex(): void
     {
         $root = $this->tempRefreshRoot();

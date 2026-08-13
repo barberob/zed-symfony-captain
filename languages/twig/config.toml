@@ -1,0 +1,10 @@
+name = "Twig"
+grammar = "twig"
+path_suffixes = ["twig", "twig.html"]
+block_comment = ["{#", "#}"]
+brackets = [
+    { start = "{{", end = "}}", close = true, newline = false },
+    { start = "{{-", end = "-}}", close = true, newline = false },
+    { start = "{%", end = "%}", close = true, newline = false },
+    { start = "{%-", end = "-%}", close = true, newline = false },
+]

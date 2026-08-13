@@ -1,0 +1,12 @@
+<h1>Posts</h1>
+<ul>
+    {% for post in posts %}
+        <li>
+            <a href="{{ path('app_post_show', {'id': post.id}) }}">show</a>
+            <a href="{{ url('app_home') }}">home</a>
+        </li>
+    {% endfor %}
+</ul>
+{% set listUrl = path('app_post_index') %}
+{% set missing = path('app_not_defined') %}
+{{ app.request.path('app_home') }}

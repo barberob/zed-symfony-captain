@@ -416,11 +416,21 @@ final class LspServer
 
     /**
      * Selects the route reference finder for a file by its extension, or null
-     * when the server does not understand the language.
+     * when the server does not understand the language. PHP files use the
+     * tokenizer-based finder; `.twig` and `.twig.html` files use the
+     * lexer-based Twig finder.
      */
     private function routeReferenceFinder(string $file): ?RouteReferenceFinder
     {
-        return str_ends_with($file, '.php') ? new RouteNameFinder() : null;
+        if (str_ends_with($file, '.php')) {
+            return new RouteNameFinder();
+        }
+
+        if (str_ends_with($file, '.twig') || str_ends_with($file, '.twig.html')) {
+            return new TwigRouteNameFinder();
+        }
+
+        return null;
     }
 
     /**
