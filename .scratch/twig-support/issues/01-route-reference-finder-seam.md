@@ -4,10 +4,14 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A `RouteReferenceFinder` interface exists covering the capabilities the features need: finding occurrences in a source, finding the occurrence at a cursor, and deciding whether a cursor is at a route reference (including half-typed source).
-- [ ] The PHP finder implements the interface; its half-typed fallback logic moves onto it from the completion builder.
-- [ ] The completion and hover builders receive the finder by constructor.
-- [ ] The LSP selects the PHP finder for PHP files.
-- [ ] All existing PHP features (go to definition, completion, hover) behave identically; the full test suite passes.
+- [x] A `RouteReferenceFinder` interface exists covering the capabilities the features need: finding occurrences in a source, finding the occurrence at a cursor, and deciding whether a cursor is at a route reference (including half-typed source).
+- [x] The PHP finder implements the interface; its half-typed fallback logic moves onto it from the completion builder.
+- [x] The completion and hover builders receive the finder by constructor.
+- [x] The LSP selects the PHP finder for PHP files.
+- [x] All existing PHP features (go to definition, completion, hover) behave identically; the full test suite passes.
+
+## Comments
+
+Resolved by `cea44a6` — refactor: introduce RouteReferenceFinder seam for route references. Full suite green (89 tests, 245 assertions).
