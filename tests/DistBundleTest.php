@@ -51,7 +51,7 @@ final class DistBundleTest extends TestCase
         foreach (glob(__DIR__ . '/../lsp/src/*.php') as $source) {
             $declaration = preg_quote(basename($source, '.php'), '/');
 
-            self::assertMatchesRegularExpression('/\b(?:final class|interface) ' . $declaration . '\b/', $bundle);
+            self::assertMatchesRegularExpression('/\b(?:final class|abstract class|interface) ' . $declaration . '\b/', $bundle);
         }
     }
 
