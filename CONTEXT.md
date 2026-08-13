@@ -15,6 +15,7 @@ The product: a Zed extension that brings Symfony route navigation to the editor,
 - **Route index health** — whether the route index was last built successfully. Diagnostics are only published against a healthy index; a failed build silences them rather than flagging every reference.
 - **Dangling route reference** — a route reference whose name matches no route in the route index. The editor surfaces it as a warning diagnostic.
 - **Diagnostic** — an editor-visible warning placed on a dangling route reference, published on document open, on save, and after every route index rebuild.
+- **Removed-route warning** — a `window/showMessage` listing every project-wide usage (`file:line`) of a route dropped by the last index rebuild. Emitted per removed route, because editor diagnostics only reach open documents.
 - **Go to definition** — navigating from a route reference to its controller.
 - **Route name completion** — the editor suggesting route names at a route reference.
 - **Workspace symbol** — a route surfaced in the editor's symbol palette.

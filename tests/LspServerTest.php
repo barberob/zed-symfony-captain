@@ -1220,6 +1220,58 @@ final class LspServerTest extends TestCase
         self::assertSame("Route 'app_dashboard' does not exist.", $second['params']['diagnostics'][0]['message']);
     }
 
+    public function testRemovingRouteWarnsForEachUsageAcrossProject(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+        $referenceFile = $root . '/src/RouteCalls.php';
+        file_put_contents($referenceFile, '<?php return $this->generateUrl(\'app_dashboard\');');
+
+        $server = $this->startRefreshServer($root);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($referenceFile)]]),
+        ]), $output));
+        rewind($output);
+        $this->parseMessages(stream_get_contents($output));
+
+        $this->writeRoutes($routesFile, ['app_about']);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($routesFile)]]),
+        ]), $output));
+        rewind($output);
+        $saved = $this->parseMessages(stream_get_contents($output));
+
+        $message = $this->messageByMethod($saved, 'window/showMessage');
+        self::assertNotNull($message);
+        self::assertSame(2, $message['params']['type']);
+        self::assertSame(
+            "Route \"app_dashboard\" was removed but is still referenced in 1 place:\n  src/RouteCalls.php:1",
+            $message['params']['message'],
+        );
+    }
+
+    public function testRemovingRouteWithoutReferencesWarnsNothing(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+
+        $server = $this->startRefreshServer($root);
+        $this->writeRoutes($routesFile, ['app_about']);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($routesFile)]]),
+        ]), $output));
+        rewind($output);
+        $saved = $this->parseMessages(stream_get_contents($output));
+
+        self::assertNull($this->messageByMethod($saved, 'window/showMessage'));
+    }
+
     public function testDidOpenOnBrokenProjectPublishesNoDiagnostics(): void
     {
         $file = __DIR__ . '/Fixture/Broken/src/Kernel.php';

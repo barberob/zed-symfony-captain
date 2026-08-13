@@ -228,14 +228,82 @@ final class LspServer
         try {
             $entries = $this->routeProvider->build();
             $this->logger->debug(sprintf('rebuildIndex: built %d routes', count($entries)));
+            $previous = $this->routeIndex;
+            $previousHealthy = $this->routeIndexHealthy;
             $this->routeIndex = new RouteIndex($entries);
             $this->routeIndexHealthy = true;
+            $this->reportRemovedRoutes($stream, $previous, $previousHealthy);
         } catch (RouteProviderException $exception) {
             $this->logger->error($exception->getMessage());
             $this->logError($stream, $exception->getMessage());
             $this->routeIndex = new RouteIndex([]);
             $this->routeIndexHealthy = false;
         }
+    }
+
+    /**
+     * Surfaced when a rebuild removes routes that are still referenced
+     * elsewhere in the project: one `window/showMessage` warning per removed
+     * route, listing every usage location. A route only reaches the index
+     * after `debug:router` succeeded, so this fires against a healthy new
+     * index; the previous index must also have been healthy, otherwise the
+     * diff would flag every route in a project that just recovered from a
+     * broken build.
+     */
+    private function reportRemovedRoutes(MessageStream $stream, ?RouteIndex $previous, bool $previousHealthy): void
+    {
+        if (null === $previous || !$previousHealthy) {
+            return;
+        }
+
+        $removed = RouteIndexDiff::removedNames($previous, $this->routeIndex);
+
+        if ([] === $removed) {
+            return;
+        }
+
+        $locations = (new RouteReferenceScanner($this->routeProvider->projectRoot()))->find($removed);
+
+        if ([] === $locations) {
+            return;
+        }
+
+        $usages = [];
+
+        foreach ($locations as $location) {
+            $usages[$location->name][] = $location;
+        }
+
+        foreach ($usages as $name => $nameLocations) {
+            $this->logRemovedRouteMessage($stream, $name, $nameLocations);
+        }
+    }
+
+    /**
+     * @param list<RouteReferenceLocation> $locations
+     */
+    private function logRemovedRouteMessage(MessageStream $stream, string $name, array $locations): void
+    {
+        $count = count($locations);
+
+        $details = array_map(
+            static fn (RouteReferenceLocation $location): string => sprintf('  %s:%d', $location->file, $location->line),
+            $locations,
+        );
+
+        $stream->write($this->encode([
+            'method' => 'window/showMessage',
+            'params' => [
+                'type' => 2,
+                'message' => sprintf(
+                    "Route \"%s\" was removed but is still referenced in %d %s:\n%s",
+                    $name,
+                    $count,
+                    1 === $count ? 'place' : 'places',
+                    implode("\n", $details),
+                ),
+            ],
+        ]));
     }
 
     /**

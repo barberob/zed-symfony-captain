@@ -163,6 +163,33 @@ final class TwigRouteNameFinderTest extends TestCase
         self::assertSame('app_post_show', $occurrences[1]->name);
     }
 
+    public function testFindsRouteNameInsideInterpolatedString(): void
+    {
+        $source = <<<'TWIG'
+        {{ "#{ path('app_home') }" }}
+        TWIG;
+
+        $occurrences = (new TwigRouteNameFinder())->find($source);
+
+        self::assertCount(1, $occurrences);
+        self::assertSame('app_home', $occurrences[0]->name);
+        self::assertSame("'app_home'", substr($source, $occurrences[0]->startOffset, $occurrences[0]->endOffset - $occurrences[0]->startOffset));
+    }
+
+    public function testFindsRouteNameAfterInterpolatedString(): void
+    {
+        $source = <<<'TWIG'
+        {{ prestations|map(p => "#{p.code} #{p.libelle}")|join('') }}
+        <a href="{{ path('app_post_show') }}">show</a>
+        TWIG;
+
+        $occurrences = (new TwigRouteNameFinder())->find($source);
+
+        self::assertCount(1, $occurrences);
+        self::assertSame('app_post_show', $occurrences[0]->name);
+        self::assertSame("'app_post_show'", substr($source, $occurrences[0]->startOffset, $occurrences[0]->endOffset - $occurrences[0]->startOffset));
+    }
+
     public function testFindAtMatchesCursorOnRouteName(): void
     {
         $source = <<<'TWIG'

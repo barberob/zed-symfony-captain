@@ -42,6 +42,21 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
     )(?:(?&DNUM)(?:(?&EXPONENT))?)
     /Ax';
 
+    /**
+     * Twig's own quoted-string literal regex, used to measure the raw span of
+     * a `STRING` token that lexed as a complete single- or double-quoted
+     * literal. Mirrors `Twig\Lexer::REGEX_STRING`.
+     */
+    private const REGEX_STRING = '/"([^#"\\\\]*(?:\\\\.[^#"\\\\]*)*)"|\'([^\'\\\\]*(?:\\\\.[^\'\\\\]*)*)\'/As';
+
+    /**
+     * Twig's own double-quoted-string part regex, used to measure the raw span
+     * of a `STRING` token that lexed as the unquoted text of a string with
+     * interpolations (the lexer consumes the surrounding quotes silently).
+     * Mirrors `Twig\Lexer::REGEX_DQ_STRING_PART`.
+     */
+    private const REGEX_STRING_PART = '/[^#"\\\\]*(?:(?:\\\\.|#(?!\{))[^#"\\\\]*)*/As';
+
     private ?Environment $environment;
 
     public function __construct(?Environment $environment = null)
@@ -65,7 +80,11 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
             return [];
         }
 
-        $offsets = $this->byteOffsets($source, $tokens);
+        try {
+            $offsets = $this->byteOffsets($source, $tokens);
+        } catch (\Throwable) {
+            return [];
+        }
         $count = count($tokens);
         $occurrences = [];
 
@@ -139,7 +158,10 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
 
     /**
      * Reconstructs the byte range of every token by walking the source with a
-     * byte cursor, since Twig tokens only expose their line number.
+     * byte cursor, since Twig tokens only expose their line number. The walker
+     * mirrors the lexer's consumption rules: the quotes of a double-quoted
+     * string are consumed silently (no token), so a stray `"` is skipped as
+     * trivia unless it opens the `STRING` token that lexed next.
      *
      * @param list<Token> $tokens
      *
@@ -160,13 +182,13 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
                 continue;
             }
 
-            $this->skipTrivia($source, $cursor, $length);
+            $this->skipTrivia($source, $cursor, $length, $token);
             $start = $cursor;
 
             $cursor = match ($token->getType()) {
                 Token::VAR_START_TYPE, Token::BLOCK_START_TYPE => $this->afterTagStart($source, $cursor, $length),
                 Token::VAR_END_TYPE, Token::BLOCK_END_TYPE => $this->afterTagEnd($source, $cursor, $length),
-                Token::STRING_TYPE => $this->afterString($source, $cursor, $length),
+                Token::STRING_TYPE => $this->afterStringToken($source, $cursor, $length, $tokens[$index + 1] ?? null),
                 Token::NUMBER_TYPE => $this->afterNumber($source, $cursor, $length),
                 Token::INTERPOLATION_START_TYPE => $cursor + 2,
                 Token::INTERPOLATION_END_TYPE => $cursor + 1,
@@ -192,6 +214,10 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
 
     private function nextTagStart(string $source, int $from, int $length): int
     {
+        if ($from > $length) {
+            return $length;
+        }
+
         $position = $length;
 
         foreach (['{{', '{%', '{#'] as $marker) {
@@ -213,10 +239,12 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
     }
 
     /**
-     * Moves the cursor past whitespace and comments that separate tokens inside
-     * and between tags.
+     * Moves the cursor past whitespace, comments, and the silently consumed
+     * quotes of interpolated double-quoted strings that separate tokens inside
+     * and between tags. A quote is only trivia when the token that lexed next
+     * is not itself a `STRING` token, which would consume it as its opener.
      */
-    private function skipTrivia(string $source, int &$cursor, int $length): void
+    private function skipTrivia(string $source, int &$cursor, int $length, Token $token): void
     {
         while ($cursor < $length) {
             if (str_contains(" \t\r\n", $source[$cursor])) {
@@ -227,6 +255,12 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
 
             if ('{#' === substr($source, $cursor, 2)) {
                 $cursor = $this->afterComment($source, $cursor, $length);
+
+                continue;
+            }
+
+            if (Token::STRING_TYPE !== $token->getType() && '"' === $source[$cursor]) {
+                $cursor++;
 
                 continue;
             }
@@ -256,28 +290,27 @@ final class TwigRouteNameFinder extends AbstractRouteReferenceFinder
     }
 
     /**
-     * Moves the cursor past a string literal, honouring backslash escapes.
+     * Moves the cursor past the raw span of a `STRING` token: a complete
+     * quoted literal when the lexer consumed one as a single token, or the
+     * unquoted text part of a double-quoted string with interpolations. When
+     * the text part opens a string (the next token is an interpolation), the
+     * lexer consumed the opening quote silently, so it is skipped here.
      */
-    private function afterString(string $source, int $cursor, int $length): int
+    private function afterStringToken(string $source, int $cursor, int $length, ?Token $next): int
     {
-        $quote = $source[$cursor];
-        $cursor++;
+        if (1 === preg_match(self::REGEX_STRING, $source, $matches, 0, $cursor)) {
+            return $cursor + strlen($matches[0]);
+        }
 
-        while ($cursor < $length) {
-            if ('\\' === $source[$cursor]) {
-                $cursor += 2;
-
-                continue;
-            }
-
-            if ($quote === $source[$cursor]) {
-                return $cursor + 1;
-            }
-
+        if (null !== $next && Token::INTERPOLATION_START_TYPE === $next->getType() && $cursor < $length && '"' === $source[$cursor]) {
             $cursor++;
         }
 
-        return $length;
+        if (1 === preg_match(self::REGEX_STRING_PART, $source, $matches, 0, $cursor)) {
+            return $cursor + strlen($matches[0]);
+        }
+
+        return $cursor;
     }
 
     private function afterNumber(string $source, int $cursor, int $length): int
