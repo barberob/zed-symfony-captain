@@ -9,6 +9,12 @@ final class LspServer
     private ?RouteProvider $routeProvider;
     private ?RouteIndex $routeIndex = null;
 
+    /** @var float Unix timestamp of the last `didSave`-triggered rebuild. */
+    private float $lastDidSaveAt = 0.0;
+
+    /** @var string|null File the last `didSave` rebuild covered. */
+    private ?string $lastDidSaveFile = null;
+
     public function __construct(
         ?RouteProvider $routeProvider = null,
         private readonly Logger $logger = new Logger(),
@@ -75,6 +81,8 @@ final class LspServer
 
                 return true;
             case 'initialized':
+                $this->registerFileWatchers($stream);
+
                 return true;
             case 'shutdown':
                 $stream->write($this->encode([
@@ -87,6 +95,10 @@ final class LspServer
                 return false;
             case 'textDocument/didSave':
                 $this->didSave($message['params'] ?? [], $stream);
+
+                return true;
+            case 'workspace/didChangeWatchedFiles':
+                $this->didChangeWatchedFiles($message['params'] ?? [], $stream);
 
                 return true;
             case 'workspace/symbol':
@@ -142,6 +154,38 @@ final class LspServer
                 new ControllerResolver($root),
             );
         }
+    }
+
+    /**
+     * Asks the client to watch the files whose changes can alter the route
+     * index, so the server hears about route-definition changes (git pulls,
+     * branch switches, codegen) that never pass through the editor's `didSave`.
+     * Registered after `initialized` through `client/registerCapability`.
+     */
+    private function registerFileWatchers(MessageStream $stream): void
+    {
+        if (null === $this->routeProvider) {
+            return;
+        }
+
+        $stream->write($this->encode([
+            'id' => 'symfony-captain-register-route-watchers',
+            'method' => 'client/registerCapability',
+            'params' => [
+                'registrations' => [
+                    [
+                        'id' => 'symfony-captain-route-files',
+                        'method' => 'workspace/didChangeWatchedFiles',
+                        'registerOptions' => [
+                            'watchers' => array_map(
+                                static fn (string $glob): array => ['globPattern' => $glob, 'kind' => 7],
+                                $this->routeProvider->watchers(),
+                            ),
+                        ],
+                    ],
+                ],
+            ],
+        ]));
     }
 
     private function ensureIndex(MessageStream $stream): void
@@ -201,7 +245,70 @@ final class LspServer
         }
 
         $this->logger->debug(sprintf('didSave triggers rebuild file=%s', $file));
+        $this->lastDidSaveAt = microtime(true);
+        $this->lastDidSaveFile = $file;
         $this->rebuildIndex($stream);
+    }
+
+    /**
+     * Rebuilds the route index when a watched file that can change routes
+     * changes on disk, even when it is not open in the editor. Mirrors
+     * `didSave` and covers changes the editor never sees. A saved file also
+     * surfaces as a watched change, so a change event that echoes the last
+     * `didSave` is skipped to avoid rebuilding twice per save.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function didChangeWatchedFiles(array $params, MessageStream $stream): void
+    {
+        if (null === $this->routeProvider) {
+            return;
+        }
+
+        $changes = $params['changes'] ?? null;
+
+        if (!is_array($changes)) {
+            return;
+        }
+
+        foreach ($changes as $change) {
+            $uri = $change['uri'] ?? null;
+            $type = $change['type'] ?? null;
+
+            if (!is_string($uri) || !is_int($type)) {
+                continue;
+            }
+
+            $file = Uri::toPath($uri);
+
+            if (null === $file || !$this->routeProvider->isRouteDefinitionFile($file)) {
+                continue;
+            }
+
+            if ($this->isDidSaveEcho($file, $type)) {
+                $this->logger->debug(sprintf('didChangeWatchedFiles skipped as didSave echo file=%s', $file));
+
+                continue;
+            }
+
+            $this->logger->debug(sprintf('didChangeWatchedFiles triggers rebuild file=%s', $file));
+            $this->rebuildIndex($stream);
+
+            return;
+        }
+    }
+
+    /**
+     * A saved file reaches the server twice: once as `textDocument/didSave`
+     * and once as a watched change event. Rebuilding for both runs
+     * `debug:router` twice per save, so a change event for the file the last
+     * `didSave` just rebuilt is ignored.
+     */
+    private function isDidSaveEcho(string $file, int $type): bool
+    {
+        return 2 === $type
+            && $file === $this->lastDidSaveFile
+            && microtime(true) - $this->lastDidSaveAt < 0.5;
     }
 
     private function logError(MessageStream $stream, string $message): void

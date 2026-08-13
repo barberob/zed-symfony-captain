@@ -48,6 +48,24 @@ final class RouteProvider
     }
 
     /**
+     * Returns the file watcher globs (relative to the project root) whose
+     * changes can alter the route index. Mirrors `isRouteDefinitionFile()` so
+     * the server can register for `workspace/didChangeWatchedFiles` and rebuild
+     * on changes that never pass through the editor's `didSave`.
+     *
+     * @return list<string>
+     */
+    public function watchers(): array
+    {
+        return [
+            'src/Controller/**/*.php',
+            'config/routes.yaml',
+            'config/routes.yml',
+            'config/routes/**/*',
+        ];
+    }
+
+    /**
      * Runs `bin/console debug:router --format=json` in the project root and
      * builds the route index, resolving each controller to its file location.
      *

@@ -6,6 +6,7 @@ namespace SymfonyCaptain\Tests;
 
 use PHPUnit\Framework\TestCase;
 use SymfonyCaptain\Lsp\LspServer;
+use SymfonyCaptain\Lsp\Logger;
 use SymfonyCaptain\Lsp\MessageStream;
 use SymfonyCaptain\Lsp\Uri;
 use SymfonyCaptain\Tests\PositionTestHelper;
@@ -60,7 +61,7 @@ final class LspServerTest extends TestCase
         self::assertNull($messages[0]['result']);
     }
 
-    public function testInitializedNotificationDoesNotProduceResponse(): void
+    public function testInitializedWithNoRootProducesNoOutput(): void
     {
         $input = $this->createInputStream([
             $this->buildNotification('initialized'),
@@ -74,6 +75,36 @@ final class LspServerTest extends TestCase
         $raw = stream_get_contents($output);
 
         self::assertSame('', $raw);
+    }
+
+    public function testInitializedRegistersRouteFileWatchers(): void
+    {
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildNotification('initialized'),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $raw = stream_get_contents($output);
+
+        $messages = $this->parseMessages($raw);
+
+        $registration = $this->messageByMethod($messages, 'client/registerCapability');
+        self::assertNotNull($registration);
+        self::assertSame('symfony-captain-register-route-watchers', $registration['id']);
+        self::assertSame('workspace/didChangeWatchedFiles', $registration['params']['registrations'][0]['method']);
+
+        $watchers = $registration['params']['registrations'][0]['registerOptions']['watchers'];
+        self::assertSame([
+            ['globPattern' => 'src/Controller/**/*.php', 'kind' => 7],
+            ['globPattern' => 'config/routes.yaml', 'kind' => 7],
+            ['globPattern' => 'config/routes.yml', 'kind' => 7],
+            ['globPattern' => 'config/routes/**/*', 'kind' => 7],
+        ], $watchers);
     }
 
     public function testWorkspaceSymbolsRequestReturnsOneSymbolPerRoute(): void
@@ -889,6 +920,82 @@ final class LspServerTest extends TestCase
         self::assertCount(1, $after['result']);
     }
 
+    public function testDidChangeWatchedFilesOnRouteFileRebuildsIndex(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+
+        $server = $this->startRefreshServer($root);
+        $this->writeRoutes($routesFile, ['app_dashboard', 'app_about']);
+
+        $after = $this->runWatchedChangeAndSymbol($server, $routesFile, 3, 2);
+        self::assertCount(2, $after['result']);
+        self::assertNotNull($this->symbolByName($after['result'], 'Route: app_about'));
+    }
+
+    public function testDidChangeWatchedFilesOnControllerFileRebuildsIndex(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+        $controllerFile = $root . '/src/Controller/DashboardController.php';
+
+        $server = $this->startRefreshServer($root);
+        $this->writeRoutes($routesFile, ['app_dashboard', 'app_about']);
+
+        $after = $this->runWatchedChangeAndSymbol($server, $controllerFile, 3, 2);
+        self::assertCount(2, $after['result']);
+    }
+
+    public function testDidChangeWatchedFilesForDeletedRouteFileRebuildsIndex(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+
+        $server = $this->startRefreshServer($root);
+        $this->writeRoutes($routesFile, ['app_dashboard', 'app_about']);
+
+        $after = $this->runWatchedChangeAndSymbol($server, $routesFile, 3, 3);
+        self::assertCount(2, $after['result']);
+    }
+
+    public function testDidChangeWatchedFilesOnUnrelatedFileDoesNotRebuildIndex(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+        $serviceFile = $root . '/src/Service/FooService.php';
+
+        $server = $this->startRefreshServer($root);
+        $this->writeRoutes($routesFile, ['app_dashboard', 'app_about']);
+
+        $after = $this->runWatchedChangeAndSymbol($server, $serviceFile, 3, 2);
+        self::assertCount(1, $after['result']);
+    }
+
+    public function testDidChangeWatchedFilesEchoingDidSaveRebuildsOnce(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+
+        $log = fopen('php://memory', 'r+');
+        $server = new LspServer(logger: new Logger($log));
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => $root]),
+            $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($routesFile)]]),
+            $this->buildNotification('workspace/didChangeWatchedFiles', ['changes' => [['uri' => Uri::fromPath($routesFile), 'type' => 2]]]),
+        ]), $output));
+        rewind($output);
+        $this->parseMessages(stream_get_contents($output));
+
+        rewind($log);
+        $logContents = (string) stream_get_contents($log);
+
+        self::assertStringContainsString('didSave triggers rebuild', $logContents);
+        self::assertStringContainsString('skipped as didSave echo', $logContents);
+        self::assertStringNotContainsString('didChangeWatchedFiles triggers rebuild', $logContents);
+    }
+
     public function testDidSaveOnBrokenProjectReturnsEmptyAndLogsError(): void
     {
         $root = __DIR__ . '/Fixture/Broken';
@@ -1033,6 +1140,22 @@ final class LspServerTest extends TestCase
         $output = fopen('php://memory', 'r+');
         $server->run(new MessageStream($this->createInputStream([
             $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+            $this->buildRequest($requestId, 'workspace/symbol'),
+        ]), $output));
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        return $this->responseById($messages, $requestId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runWatchedChangeAndSymbol(LspServer $server, string $file, int $requestId, int $type): array
+    {
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('workspace/didChangeWatchedFiles', ['changes' => [['uri' => Uri::fromPath($file), 'type' => $type]]]),
             $this->buildRequest($requestId, 'workspace/symbol'),
         ]), $output));
         rewind($output);

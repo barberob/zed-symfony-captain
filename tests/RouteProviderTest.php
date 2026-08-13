@@ -112,6 +112,18 @@ final class RouteProviderTest extends TestCase
         self::assertFalse($provider->isRouteDefinitionFile($root . '/templates/index.html.twig'));
     }
 
+    public function testWatchersCoversRouteDefinitionFilesOnly(): void
+    {
+        $watchers = $this->provider(__DIR__ . '/Fixture/Project')->watchers();
+
+        self::assertSame([
+            'src/Controller/**/*.php',
+            'config/routes.yaml',
+            'config/routes.yml',
+            'config/routes/**/*',
+        ], $watchers);
+    }
+
     /**
      * @return list<RouteEntry>
      */
