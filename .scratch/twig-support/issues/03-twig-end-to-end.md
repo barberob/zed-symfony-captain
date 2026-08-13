@@ -4,12 +4,16 @@
 
 **Blocked by:** 02 — Twig route reference finder.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Files ending in `.twig` or `.twig.html` are handled with the Twig finder; `.php` files continue to use the PHP finder.
-- [ ] Go to definition on a route name inside `path()`/`url()` in a Twig template opens the controller.
-- [ ] Completion on a route reference in a Twig template returns the sorted completion list; an empty list outside route references.
-- [ ] Hover on a route reference in a Twig template shows the route name, method and path, and controller.
-- [ ] Silence is preserved: nothing in non-Symfony projects or at non-route positions.
-- [ ] A `.twig` fixture file exists and end-to-end protocol tests cover definition, completion, and hover (including the silent cases).
-- [ ] The extension registers the Twig language so Zed attaches the language server to templates.
+- [x] Files ending in `.twig` or `.twig.html` are handled with the Twig finder; `.php` files continue to use the PHP finder.
+- [x] Go to definition on a route name inside `path()`/`url()` in a Twig template opens the controller.
+- [x] Completion on a route reference in a Twig template returns the sorted completion list; an empty list outside route references.
+- [x] Hover on a route reference in a Twig template shows the route name, method and path, and controller.
+- [x] Silence is preserved: nothing in non-Symfony projects or at non-route positions.
+- [x] A `.twig` fixture file exists and end-to-end protocol tests cover definition, completion, and hover (including the silent cases).
+- [x] The extension registers the Twig language so Zed attaches the language server to templates.
+
+## Comments
+
+Resolved by `e3069b5` — feat: wire the Twig finder into the language server. Full suite green (135 tests, 333 assertions).
