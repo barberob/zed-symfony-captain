@@ -1052,6 +1052,213 @@ final class LspServerTest extends TestCase
         self::assertStringContainsString('debug:router', $log['params']['message']);
     }
 
+    public function testDidOpenPublishesDiagnosticsForDanglingRouteReference(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        $publish = $this->messageByMethod($messages, 'textDocument/publishDiagnostics');
+        self::assertNotNull($publish);
+        self::assertSame(Uri::fromPath($file), $publish['params']['uri']);
+
+        $diagnostics = $publish['params']['diagnostics'];
+        self::assertCount(1, $diagnostics);
+        self::assertSame("Route 'app_not_defined' does not exist.", $diagnostics[0]['message']);
+        self::assertSame(2, $diagnostics[0]['severity']);
+        self::assertSame('symfony-captain', $diagnostics[0]['source']);
+        self::assertArrayHasKey('range', $diagnostics[0]);
+    }
+
+    public function testDidOpenOnFileWithoutDanglingReferencePublishesEmptyDiagnostics(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/layout.twig.html';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        $publish = $this->messageByMethod($messages, 'textDocument/publishDiagnostics');
+        self::assertNotNull($publish);
+        self::assertSame(Uri::fromPath($file), $publish['params']['uri']);
+        self::assertSame([], $publish['params']['diagnostics']);
+    }
+
+    public function testDidOpenOnTwigTemplatePublishesDiagnosticsForDanglingReference(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/templates/index.html.twig';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        $publish = $this->messageByMethod($messages, 'textDocument/publishDiagnostics');
+        self::assertNotNull($publish);
+        self::assertSame(Uri::fromPath($file), $publish['params']['uri']);
+        self::assertCount(1, $publish['params']['diagnostics']);
+        self::assertSame("Route 'app_not_defined' does not exist.", $publish['params']['diagnostics'][0]['message']);
+    }
+
+    public function testDidSaveOnReferenceFilePublishesDiagnostics(): void
+    {
+        $file = __DIR__ . '/Fixture/Project/src/RouteCalls.php';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Project']),
+            $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        $publish = $this->messageByMethod($messages, 'textDocument/publishDiagnostics');
+        self::assertNotNull($publish);
+        self::assertSame(Uri::fromPath($file), $publish['params']['uri']);
+        self::assertCount(1, $publish['params']['diagnostics']);
+        self::assertSame("Route 'app_not_defined' does not exist.", $publish['params']['diagnostics'][0]['message']);
+    }
+
+    public function testRebuildRepublishesOpenDocumentDiagnostics(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+        $referenceFile = $root . '/src/RouteCalls.php';
+        file_put_contents($referenceFile, '<?php return $this->generateUrl(\'app_dashboard\');');
+
+        $server = $this->startRefreshServer($root);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($referenceFile)]]),
+        ]), $output));
+        rewind($output);
+        $opened = $this->parseMessages(stream_get_contents($output));
+
+        $first = $this->messageByMethod($opened, 'textDocument/publishDiagnostics');
+        self::assertNotNull($first);
+        self::assertSame([], $first['params']['diagnostics']);
+
+        $this->writeRoutes($routesFile, ['app_about']);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didSave', ['textDocument' => ['uri' => Uri::fromPath($routesFile)]]),
+        ]), $output));
+        rewind($output);
+        $saved = $this->parseMessages(stream_get_contents($output));
+
+        $second = $this->messageByMethod($saved, 'textDocument/publishDiagnostics');
+        self::assertNotNull($second);
+        self::assertSame(Uri::fromPath($referenceFile), $second['params']['uri']);
+        self::assertCount(1, $second['params']['diagnostics']);
+        self::assertSame("Route 'app_dashboard' does not exist.", $second['params']['diagnostics'][0]['message']);
+    }
+
+    public function testWatchedRouteFileChangeRepublishesOpenDocumentDiagnostics(): void
+    {
+        $root = $this->tempRefreshRoot();
+        $routesFile = $root . '/config/routes/routes.json';
+        $referenceFile = $root . '/src/RouteCalls.php';
+        file_put_contents($referenceFile, '<?php return $this->generateUrl(\'app_dashboard\');');
+
+        $server = $this->startRefreshServer($root);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($referenceFile)]]),
+        ]), $output));
+        rewind($output);
+        $opened = $this->parseMessages(stream_get_contents($output));
+
+        $first = $this->messageByMethod($opened, 'textDocument/publishDiagnostics');
+        self::assertNotNull($first);
+        self::assertSame([], $first['params']['diagnostics']);
+
+        $this->writeRoutes($routesFile, ['app_about']);
+
+        $output = fopen('php://memory', 'r+');
+        $server->run(new MessageStream($this->createInputStream([
+            $this->buildNotification('workspace/didChangeWatchedFiles', ['changes' => [['uri' => Uri::fromPath($routesFile), 'type' => 2]]]),
+        ]), $output));
+        rewind($output);
+        $watched = $this->parseMessages(stream_get_contents($output));
+
+        $second = $this->messageByMethod($watched, 'textDocument/publishDiagnostics');
+        self::assertNotNull($second);
+        self::assertSame(Uri::fromPath($referenceFile), $second['params']['uri']);
+        self::assertCount(1, $second['params']['diagnostics']);
+        self::assertSame("Route 'app_dashboard' does not exist.", $second['params']['diagnostics'][0]['message']);
+    }
+
+    public function testDidOpenOnBrokenProjectPublishesNoDiagnostics(): void
+    {
+        $file = __DIR__ . '/Fixture/Broken/src/Kernel.php';
+        self::assertFileExists($file);
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Broken']),
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        self::assertNull($this->messageByMethod($messages, 'textDocument/publishDiagnostics'));
+    }
+
+    public function testDidOpenOnNonSymfonyProjectPublishesNoDiagnostics(): void
+    {
+        $file = __DIR__ . '/Fixture/Empty/foo.twig';
+
+        $input = $this->createInputStream([
+            $this->buildRequest(1, 'initialize', ['rootPath' => __DIR__ . '/Fixture/Empty']),
+            $this->buildNotification('textDocument/didOpen', ['textDocument' => ['uri' => Uri::fromPath($file)]]),
+        ]);
+        $output = fopen('php://memory', 'r+');
+
+        $server = new LspServer();
+        $server->run(new MessageStream($input, $output));
+
+        rewind($output);
+        $messages = $this->parseMessages(stream_get_contents($output));
+
+        self::assertNull($this->messageByMethod($messages, 'textDocument/publishDiagnostics'));
+    }
+
     /**
      * @param list<array<string, mixed>> $symbols
      *

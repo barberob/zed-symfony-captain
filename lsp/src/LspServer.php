@@ -15,6 +15,12 @@ final class LspServer
     /** @var string|null File the last `didSave` rebuild covered. */
     private ?string $lastDidSaveFile = null;
 
+    /** @var bool Whether the last route index build succeeded. Diagnostics are only published against a healthy index. */
+    private bool $routeIndexHealthy = false;
+
+    /** @var array<string, string> Open reference file URIs, re-published after an index rebuild. */
+    private array $openDocuments = [];
+
     public function __construct(
         ?RouteProvider $routeProvider = null,
         private readonly Logger $logger = new Logger(),
@@ -95,6 +101,14 @@ final class LspServer
                 return false;
             case 'textDocument/didSave':
                 $this->didSave($message['params'] ?? [], $stream);
+
+                return true;
+            case 'textDocument/didOpen':
+                $this->didOpen($message['params'] ?? [], $stream);
+
+                return true;
+            case 'textDocument/didClose':
+                $this->didClose($message['params'] ?? []);
 
                 return true;
             case 'workspace/didChangeWatchedFiles':
@@ -206,6 +220,7 @@ final class LspServer
         if (!$this->routeProvider->isSymfonyProject()) {
             $this->logger->debug(sprintf('rebuildIndex: %s is not a Symfony project', $this->routeProvider->projectRoot()));
             $this->routeIndex = null;
+            $this->routeIndexHealthy = false;
 
             return;
         }
@@ -214,17 +229,21 @@ final class LspServer
             $entries = $this->routeProvider->build();
             $this->logger->debug(sprintf('rebuildIndex: built %d routes', count($entries)));
             $this->routeIndex = new RouteIndex($entries);
+            $this->routeIndexHealthy = true;
         } catch (RouteProviderException $exception) {
             $this->logger->error($exception->getMessage());
             $this->logError($stream, $exception->getMessage());
             $this->routeIndex = new RouteIndex([]);
+            $this->routeIndexHealthy = false;
         }
     }
 
     /**
      * Rebuilds the route index when a file under `src/Controller/` or
      * `config/routes/` is saved, so symbol and definition results stay in sync
-     * with the workspace without a language server restart.
+     * with the workspace without a language server restart. Saving a route
+     * reference file re-publishes its diagnostics; saving a route-definition
+     * file re-publishes every open reference file against the fresh index.
      *
      * @param array<string, mixed> $params
      */
@@ -238,16 +257,117 @@ final class LspServer
 
         $file = Uri::toPath($uri);
 
-        if (null === $file || !$this->routeProvider->isRouteDefinitionFile($file)) {
-            $this->logger->debug(sprintf('didSave ignored uri=%s file=%s', $uri ?? 'null', $file ?? 'null'));
+        if (null === $file) {
+            return;
+        }
+
+        if ($this->routeProvider->isRouteDefinitionFile($file)) {
+            $this->logger->debug(sprintf('didSave triggers rebuild file=%s', $file));
+            $this->lastDidSaveAt = microtime(true);
+            $this->lastDidSaveFile = $file;
+            $this->rebuildIndex($stream);
+            $this->publishOpenDocumentDiagnostics($stream);
 
             return;
         }
 
-        $this->logger->debug(sprintf('didSave triggers rebuild file=%s', $file));
-        $this->lastDidSaveAt = microtime(true);
-        $this->lastDidSaveFile = $file;
-        $this->rebuildIndex($stream);
+        if (null !== $this->routeReferenceFinder($file)) {
+            $this->ensureIndex($stream);
+            $this->publishDiagnostics($stream, $uri);
+
+            return;
+        }
+
+        $this->logger->debug(sprintf('didSave ignored uri=%s file=%s', $uri, $file));
+    }
+
+    /**
+     * Tracks an open reference file and publishes its diagnostics. Opening the
+     * first document also triggers the eager route index build.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function didOpen(array $params, MessageStream $stream): void
+    {
+        $uri = $params['textDocument']['uri'] ?? null;
+
+        if (!is_string($uri)) {
+            return;
+        }
+
+        $file = Uri::toPath($uri);
+
+        if (null === $file || null === $this->routeReferenceFinder($file)) {
+            return;
+        }
+
+        $this->openDocuments[$uri] = $uri;
+        $this->ensureIndex($stream);
+        $this->publishDiagnostics($stream, $uri);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function didClose(array $params): void
+    {
+        $uri = $params['textDocument']['uri'] ?? null;
+
+        if (is_string($uri)) {
+            unset($this->openDocuments[$uri]);
+        }
+    }
+
+    /**
+     * Publishes the diagnostics for a single open document: one warning per
+     * dangling route reference. Silenced unless the last index build
+     * succeeded, because a failed build collapses the index to empty and
+     * flagging against it would mark every reference in the project as
+     * dangling at once.
+     */
+    private function publishDiagnostics(MessageStream $stream, string $uri): void
+    {
+        if (null === $this->routeIndex || !$this->routeIndexHealthy) {
+            return;
+        }
+
+        $file = Uri::toPath($uri);
+
+        if (null === $file || !is_file($file)) {
+            return;
+        }
+
+        $finder = $this->routeReferenceFinder($file);
+
+        if (null === $finder) {
+            return;
+        }
+
+        $source = file_get_contents($file);
+
+        if (false === $source) {
+            return;
+        }
+
+        $stream->write($this->encode([
+            'method' => 'textDocument/publishDiagnostics',
+            'params' => [
+                'uri' => $uri,
+                'diagnostics' => (new RouteDiagnostics($this->routeIndex, $finder))->diagnostics($source),
+            ],
+        ]));
+    }
+
+    /**
+     * Re-publishes diagnostics for every open reference file after an index
+     * rebuild, so a route added or removed on disk re-flags the files that
+     * reference it without the user touching them.
+     */
+    private function publishOpenDocumentDiagnostics(MessageStream $stream): void
+    {
+        foreach ($this->openDocuments as $uri) {
+            $this->publishDiagnostics($stream, $uri);
+        }
     }
 
     /**
@@ -293,6 +413,7 @@ final class LspServer
 
             $this->logger->debug(sprintf('didChangeWatchedFiles triggers rebuild file=%s', $file));
             $this->rebuildIndex($stream);
+            $this->publishOpenDocumentDiagnostics($stream);
 
             return;
         }

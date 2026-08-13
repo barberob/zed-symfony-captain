@@ -1,0 +1,3 @@
+# Route diagnostics are gated on route index health
+
+A failed `bin/console debug:router` rebuild collapses the route index to empty (an empty `RouteIndex([])`), which is indistinguishable from a project with genuinely no routes. Diagnostics must only be published against an index whose last build succeeded: on failure the server stays silent, because flagging against an empty index would light up every route reference in the project as dangling at once. The health flag lives on the server (a `bool`), not inside the index value object, so symbols, definition, completion, and hover keep their existing silent-on-failure behaviour.
