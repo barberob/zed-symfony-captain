@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Symfony Captain — Zed extension for Symfony route navigation
 
@@ -65,3 +65,7 @@ Because Zed does not allow custom side panels or extension-provided slash comman
 
 - The next phase after the MVP should add route name completion and hover, then Twig support.
 - The ultimate goal is to publish the extension to the Zed extension marketplace once the MVP is stable.
+
+## Closed
+
+MVP shipped as `v0.1.0` (release on `barberob/zed-symfony-captain`): workspace symbols and go-to-definition work against a real Symfony project (128 routes), the LSP distributes via GitHub release asset, and all 7 implementation issues (01–07) are resolved. Out-of-scope items remain the candidate roadmap: route name completion, hover, Twig support, and marketplace publication.
